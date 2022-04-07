@@ -180,7 +180,7 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// It is also used by the sorting algorithm.
     ///
     /// Note that it is _not_ called on an [`Event::Complete`],
-    /// [`react`] is called then instead.
+    /// [`Self::react`] is called then instead.
     ///
     /// The default implementation forwards to [`Self::entry_content`].
     fn completed(&mut self, line: usize) -> String {
