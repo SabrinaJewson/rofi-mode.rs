@@ -524,13 +524,18 @@ pub enum Event {
     CustomInput {
         /// Whether the alt binding was used (ctrl+shift+return by default).
         alt: bool,
-        /// The line that was selected at the time of cancellation,
+        /// The line that was selected at the time of the event,
         /// if one was selected.
         selected: Option<usize>,
     },
     /// The user used the `kb-mode-complete` binding (control+l by default).
+    ///
+    /// If this happens,
+    /// you should set the `input` value
+    /// to the currently selected entry
+    /// if there is one.
     Complete {
-        /// The line that was selected at the time of cancellation,
+        /// The line that was selected at the time of the event,
         /// if one was selected.
         selected: Option<usize>,
     },
@@ -543,7 +548,7 @@ pub enum Event {
     CustomCommand {
         /// The number of the custom cuommand, in the range [0, 18].
         number: u8,
-        /// The line that was selected at the time of cancellation,
+        /// The line that was selected at the time of the event,
         /// if one was selected.
         selected: Option<usize>,
     },
