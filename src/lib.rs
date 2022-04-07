@@ -297,7 +297,9 @@ unsafe extern "C" fn result<T: GivesMode>(
 
         let action = mode.react(event, &mut input_string, selected_line as usize);
 
-        *input = input_string.into_raw().cast::<c_char>();
+        if !input_string.is_empty() {
+            *input = input_string.into_raw().cast::<c_char>();
+        }
 
         action
     })
