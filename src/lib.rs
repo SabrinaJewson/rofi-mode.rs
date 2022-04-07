@@ -32,13 +32,12 @@
 //!     fn entry(&mut self, _line: usize) -> rofi_mode::Entry { unreachable!() }
 //!     fn react(
 //!         &mut self,
-//!         event: rofi_mode::Event,
-//!         input: &mut rofi_mode::String,
-//!         selected_line: usize,
+//!         _event: rofi_mode::Event,
+//!         _input: &mut rofi_mode::String,
 //!     ) -> rofi_mode::Action {
 //!         rofi_mode::Action::Exit
 //!     }
-//!     fn matches(&self, line: usize, matcher: rofi_mode::Matcher<'_>) -> bool {
+//!     fn matches(&self, _line: usize, _matcher: rofi_mode::Matcher<'_>) -> bool {
 //!         unreachable!()
 //!     }
 //! }
@@ -98,7 +97,7 @@ use ::{
 pub use {cairo, pango, rofi_plugin_sys as ffi};
 
 mod string;
-pub use string::{String, format};
+pub use string::{format, String};
 
 pub mod api;
 pub use api::Api;
@@ -145,7 +144,10 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// Process the result of a user's selection
     /// in response to them pressing enter, escape etc,
     /// returning the next action to be taken.
-    fn react(&mut self, event: Event, input: &mut String, selected_line: usize) -> Action;
+    ///
+    /// `input` contains the current state of the input text box
+    /// and can be mutated to change its contents.
+    fn react(&mut self, event: Event, input: &mut String) -> Action;
 
     /// Find whether a specific line matches the given matcher.
     ///
@@ -284,19 +286,30 @@ unsafe extern "C" fn result<T: GivesMode>(
 ) -> c_int {
     let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     let action = catch_panic(|| {
+        let selected = if selected_line == c_uint::MAX {
+            None
+        } else {
+            Some(selected_line as usize)
+        };
+
         let event = match mretv {
-            ffi::menu::CANCEL => Event::Cancel,
+            ffi::menu::CANCEL => Event::Cancel { selected },
             _ if mretv & ffi::menu::OK != 0 => Event::Ok {
                 alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
+                selected: selected.expect("Ok event without selected line"),
             },
             _ if mretv & ffi::menu::CUSTOM_INPUT != 0 => Event::CustomInput {
                 alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
+                selected,
             },
-            ffi::menu::COMPLETE => Event::Complete,
-            ffi::menu::ENTRY_DELETE => Event::DeleteEntry,
-            _ if mretv & ffi::menu::CUSTOM_COMMAND != 0 => {
-                Event::CustomCommand((mretv & ffi::menu::LOWER_MASK) as u8)
-            }
+            ffi::menu::COMPLETE => Event::Complete { selected },
+            ffi::menu::ENTRY_DELETE => Event::DeleteEntry {
+                selected: selected.expect("DeleteEntry event without selected line"),
+            },
+            _ if mretv & ffi::menu::CUSTOM_COMMAND != 0 => Event::CustomCommand {
+                number: (mretv & ffi::menu::LOWER_MASK) as u8,
+                selected,
+            },
             _ => panic!("unexpected mretv {mretv:X}"),
         };
 
@@ -305,7 +318,7 @@ unsafe extern "C" fn result<T: GivesMode>(
         let len = unsafe { libc::strlen(input_ptr) };
         let mut input_string = unsafe { String::from_raw_parts(input_ptr.cast(), len, len + 1) };
 
-        let action = mode.react(event, &mut input_string, selected_line as usize);
+        let action = mode.react(event, &mut input_string);
 
         if !input_string.is_empty() {
             *input = input_string.into_raw().cast::<c_char>();
@@ -414,23 +427,60 @@ fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
     /// The user cancelled the operation, for example by pressing escape.
-    Cancel,
+    Cancel {
+        /// The line that was selected at the time of cancellation,
+        /// if one was selected.
+        selected: Option<usize>,
+    },
     /// The user accepted an option from the list (ctrl+j, ctrl+m or enter by default).
     Ok {
         /// Whether the alt binding was used (shift+enter by default).
         alt: bool,
+        /// The line that was selected.
+        selected: usize,
     },
     /// The user entered an input not on the list (ctrl+return by default).
     CustomInput {
         /// Whether the alt binding was used (ctrl+shift+return by default).
         alt: bool,
+        /// The line that was selected at the time of cancellation,
+        /// if one was selected.
+        selected: Option<usize>,
     },
     /// The user used the `kb-mode-complete` binding (control+l by default).
-    Complete,
+    Complete {
+        /// The line that was selected at the time of cancellation,
+        /// if one was selected.
+        selected: Option<usize>,
+    },
     /// The user used the `kb-delete-entry` binding (shift+delete by default).
-    DeleteEntry,
-    /// The user ran a custom command. The given integer is in the range [0, 18].
-    CustomCommand(u8),
+    DeleteEntry {
+        /// The index of the entry that was selected to be deleted,
+        selected: usize,
+    },
+    /// The user ran a custom command.
+    CustomCommand {
+        /// The number of the custom cuommand, in the range [0, 18].
+        number: u8,
+        /// The line that was selected at the time of cancellation,
+        /// if one was selected.
+        selected: Option<usize>,
+    },
+}
+
+impl Event {
+    /// Get the index of the line that was selected at the time of the event,
+    /// if one was selected.
+    #[must_use]
+    pub const fn selected(&self) -> Option<usize> {
+        match *self {
+            Self::Cancel { selected }
+            | Self::CustomInput { selected, .. }
+            | Self::Complete { selected }
+            | Self::CustomCommand { selected, .. } => selected,
+            Self::Ok { selected, .. } | Self::DeleteEntry { selected } => Some(selected),
+        }
+    }
 }
 
 /// An action caused by reacting to an [`Event`].

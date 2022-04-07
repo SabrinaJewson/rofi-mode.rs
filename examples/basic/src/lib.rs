@@ -32,26 +32,30 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
         &mut self,
         event: rofi_mode::Event,
         input: &mut rofi_mode::String,
-        selected_line: usize,
     ) -> rofi_mode::Action {
         match event {
-            rofi_mode::Event::Cancel => return rofi_mode::Action::Exit,
-            rofi_mode::Event::Ok { alt: _ } => {
-                println!("Selected option {:?}", self.entries[selected_line]);
+            rofi_mode::Event::Cancel { selected: _ } => return rofi_mode::Action::Exit,
+            rofi_mode::Event::Ok { alt: _, selected } => {
+                println!("Selected option {:?}", self.entries[selected]);
                 return rofi_mode::Action::Exit;
             }
-            rofi_mode::Event::CustomInput { alt: _ } => {
+            rofi_mode::Event::CustomInput {
+                alt: _,
+                selected: _,
+            } => {
                 self.entries.push(input.into());
                 input.clear();
             }
-            rofi_mode::Event::DeleteEntry => {
-                self.entries.remove(selected_line);
+            rofi_mode::Event::DeleteEntry { selected } => {
+                self.entries.remove(selected);
             }
-            rofi_mode::Event::Complete => {
+            rofi_mode::Event::Complete {
+                selected: Some(selected),
+            } => {
                 input.clear();
-                input.push_str(&self.entries[selected_line]);
+                input.push_str(&self.entries[selected]);
             }
-            rofi_mode::Event::CustomCommand(_) => {}
+            rofi_mode::Event::Complete { .. } | rofi_mode::Event::CustomCommand { .. } => {}
         }
         rofi_mode::Action::Reload
     }
