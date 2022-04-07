@@ -1,6 +1,7 @@
 use ::std::{
     borrow::Borrow,
     cmp,
+    ffi::CStr,
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     mem::ManuallyDrop,
@@ -244,6 +245,17 @@ impl Deref for String {
 impl AsRef<str> for String {
     fn as_ref(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl AsRef<CStr> for String {
+    fn as_ref(&self) -> &CStr {
+        let bytes = self.as_str_nul().as_bytes();
+        if cfg!(debug_assertions) {
+            CStr::from_bytes_with_nul(bytes).unwrap()
+        } else {
+            unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
+        }
     }
 }
 

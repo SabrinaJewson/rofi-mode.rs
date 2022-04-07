@@ -1,28 +1,30 @@
-rofi_mode::export_mode!(Mode);
+rofi_mode::export_mode!(Mode<'_>);
 
-struct Mode {
+struct Mode<'rofi> {
+    api: rofi_mode::Api<'rofi>,
     entries: Vec<String>,
 }
 
-impl rofi_mode::Mode for Mode {
+impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     const NAME: &'static str = "plugin-example-basic\0";
     const DISPLAY_NAME: &'static str = "A basic Rofi plugin\0";
 
-    fn init() -> Result<Self, ()> {
+    fn init(api: rofi_mode::Api<'rofi>) -> Result<Self, ()> {
         Ok(Self {
+            api,
             entries: Vec::new(),
         })
     }
 
-    fn entries(&self) -> usize {
+    fn entries(&mut self) -> usize {
         self.entries.len()
     }
 
-    fn entry_style(&self, _line: usize) -> rofi_mode::Style {
+    fn entry_style(&mut self, _line: usize) -> rofi_mode::Style {
         rofi_mode::Style::NORMAL
     }
 
-    fn entry(&self, line: usize) -> rofi_mode::Entry {
+    fn entry(&mut self, line: usize) -> rofi_mode::Entry {
         rofi_mode::Entry::from(&self.entries[line]).with_style(self.entry_style(line))
     }
 
@@ -56,5 +58,9 @@ impl rofi_mode::Mode for Mode {
 
     fn matches(&self, line: usize, matcher: rofi_mode::Matcher<'_>) -> bool {
         matcher.matches(&*self.entries[line])
+    }
+
+    fn entry_icon(&mut self, _line: usize, height: u32) -> Option<rofi_mode::cairo::Surface> {
+        self.api.query_icon("computer", height).wait(&mut self.api)
     }
 }

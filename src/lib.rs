@@ -21,15 +21,15 @@
 //! ```no_run
 //! struct Mode;
 //!
-//! impl rofi_mode::Mode for Mode {
+//! impl rofi_mode::Mode<'_> for Mode {
 //!     const NAME: &'static str = "an-example-mode\0";
 //!     const DISPLAY_NAME: &'static str = "My example mode\0";
-//!     fn init() -> Result<Self, ()> {
+//!     fn init(_api: rofi_mode::Api<'_>) -> Result<Self, ()> {
 //!         Ok(Self)
 //!     }
-//!     fn entries(&self) -> usize { 0 }
-//!     fn entry_style(&self, _line: usize) -> rofi_mode::Style { unreachable!() }
-//!     fn entry(&self, _line: usize) -> rofi_mode::Entry { unreachable!() }
+//!     fn entries(&mut self) -> usize { 0 }
+//!     fn entry_style(&mut self, _line: usize) -> rofi_mode::Style { unreachable!() }
+//!     fn entry(&mut self, _line: usize) -> rofi_mode::Entry { unreachable!() }
 //!     fn react(
 //!         &mut self,
 //!         event: rofi_mode::Event,
@@ -81,6 +81,7 @@
 
 use ::{
     bitflags::bitflags,
+    cairo::ffi as cairo_sys,
     pango::{
         ffi as pango_sys,
         glib::{ffi as glib_sys, translate::ToGlibPtrMut},
@@ -94,18 +95,19 @@ use ::{
     },
 };
 
-pub use rofi_plugin_sys as ffi;
-
-pub use pango;
+pub use {cairo, pango, rofi_plugin_sys as ffi};
 
 mod string;
 pub use string::String;
+
+pub mod api;
+pub use api::Api;
 
 /// A mode supported by Rofi.
 ///
 /// You can implement this trait on your own type to define a mode,
 /// then export it in the shared library using [`export_mode!`].
-pub trait Mode: 'static + Sized + Send + Sync {
+pub trait Mode<'rofi>: Sized + Send + Sync {
     /// The name of the mode.
     ///
     /// This string must be null-terminated
@@ -129,16 +131,16 @@ pub trait Mode: 'static + Sized + Send + Sync {
     /// Failed to initialize the mode: {your mode name}
     /// ```
     #[allow(clippy::result_unit_err)]
-    fn init() -> Result<Self, ()>;
+    fn init(api: Api<'rofi>) -> Result<Self, ()>;
 
     /// Get the number of entries offered by the mode.
-    fn entries(&self) -> usize;
+    fn entries(&mut self) -> usize;
 
     /// Get the text style of an entry in the list.
-    fn entry_style(&self, line: usize) -> Style;
+    fn entry_style(&mut self, line: usize) -> Style;
 
     /// Get the style and value to display of an entry in the list.
-    fn entry(&self, line: usize) -> Entry;
+    fn entry(&mut self, line: usize) -> Entry;
 
     /// Process the result of a user's selection
     /// in response to them pressing enter, escape etc,
@@ -146,7 +148,17 @@ pub trait Mode: 'static + Sized + Send + Sync {
     fn react(&mut self, event: Event, input: &mut String, selected_line: usize) -> Action;
 
     /// Find whether a specific line matches the given matcher.
+    ///
+    /// Only this function takes `&self`,
+    /// since it is the only one that can be called from multiple threads.
     fn matches(&self, line: usize, matcher: Matcher<'_>) -> bool;
+
+    /// Obtains the icon of the entry if available.
+    ///
+    /// The default implementation always returns [`None`].
+    fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
+        None
+    }
 }
 
 /// Declare a mode to be exported by this crate.
@@ -157,7 +169,7 @@ pub trait Mode: 'static + Sized + Send + Sync {
 macro_rules! export_mode {
     ($t:ty $(,)?) => {
         #[no_mangle]
-        pub static mut mode: $crate::ffi::Mode = $crate::raw_mode::<$t>();
+        pub static mut mode: $crate::ffi::Mode = $crate::raw_mode::<fn(&()) -> $t>();
     };
 }
 
@@ -173,22 +185,38 @@ macro_rules! export_mode {
 pub const fn raw_mode<T>() -> ffi::Mode
 where
     // Workaround to get trait bounds in `const fn` on stable
-    <[T; 0] as IntoIterator>::Item: Mode,
+    <[T; 0] as IntoIterator>::Item: GivesMode,
 {
-    assert_c_str(T::DISPLAY_NAME);
+    assert_c_str(<<T as GivesModeLifetime<'_>>::Mode as Mode>::DISPLAY_NAME);
     <RawModeHelper<T>>::VALUE
 }
 
+mod sealed {
+    use crate::Mode;
+
+    pub trait GivesMode: for<'rofi> GivesModeLifetime<'rofi> {}
+    impl<T: ?Sized + for<'rofi> GivesModeLifetime<'rofi>> GivesMode for T {}
+
+    pub trait GivesModeLifetime<'rofi> {
+        type Mode: Mode<'rofi>;
+    }
+    impl<'rofi, F: FnOnce(&'rofi ()) -> O, O: Mode<'rofi>> GivesModeLifetime<'rofi> for F {
+        type Mode = O;
+    }
+}
+use sealed::{GivesMode, GivesModeLifetime};
+
 struct RawModeHelper<T>(T);
-impl<T: Mode> RawModeHelper<T> {
+impl<T: GivesMode> RawModeHelper<T> {
     const VALUE: ffi::Mode = ffi::Mode {
-        name: assert_c_str(T::NAME),
+        name: assert_c_str(<<T as GivesModeLifetime<'_>>::Mode as Mode>::NAME),
         _init: Some(init::<T>),
         _destroy: Some(destroy::<T>),
         _get_num_entries: Some(get_num_entries::<T>),
         _result: Some(result::<T>),
         _get_display_value: Some(get_display_value::<T>),
         _token_match: Some(token_match::<T>),
+        _get_icon: Some(get_icon::<T>),
         ..ffi::Mode::default()
     };
 }
@@ -203,21 +231,27 @@ const fn assert_c_str(s: &'static str) -> *mut c_char {
     s.as_ptr() as _
 }
 
-unsafe extern "C" fn init<T: Mode>(sw: *mut ffi::Mode) -> c_int {
+type ModeOf<'a, T> = <T as GivesModeLifetime<'a>>::Mode;
+
+unsafe extern "C" fn init<T: GivesMode>(sw: *mut ffi::Mode) -> c_int {
     if unsafe { ffi::mode_get_private_data(sw) }.is_null() {
-        let boxed: Box<T> = match catch_panic(|| T::init().map(Box::new)) {
-            Ok(Ok(boxed)) => boxed,
-            Ok(Err(())) | Err(()) => return false.into(),
-        };
+        let api = unsafe { Api::new() };
+
+        let boxed: Box<ModeOf<'_, T>> =
+            match catch_panic(|| <ModeOf<'_, T>>::init(api).map(Box::new)) {
+                Ok(Ok(boxed)) => boxed,
+                Ok(Err(())) | Err(()) => return false.into(),
+            };
         let ptr = Box::into_raw(boxed).cast::<c_void>();
         unsafe { ffi::mode_set_private_data(sw, ptr) };
 
-        unsafe { (*sw).display_name = glib_sys::g_strdup(T::DISPLAY_NAME.as_ptr().cast()) };
+        let display_name = <ModeOf<'_, T>>::DISPLAY_NAME;
+        unsafe { (*sw).display_name = glib_sys::g_strdup(display_name.as_ptr().cast()) };
     }
     true.into()
 }
 
-unsafe extern "C" fn destroy<T: Mode>(sw: *mut ffi::Mode) {
+unsafe extern "C" fn destroy<T: GivesMode>(sw: *mut ffi::Mode) {
     let ptr = unsafe { ffi::mode_get_private_data(sw) };
     if ptr.is_null() {
         return;
@@ -227,18 +261,18 @@ unsafe extern "C" fn destroy<T: Mode>(sw: *mut ffi::Mode) {
     unsafe { ffi::mode_set_private_data(sw, ptr::null_mut()) };
 }
 
-unsafe extern "C" fn get_num_entries<T: Mode>(sw: *const ffi::Mode) -> c_uint {
-    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+unsafe extern "C" fn get_num_entries<T: GivesMode>(sw: *const ffi::Mode) -> c_uint {
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| mode.entries().try_into().unwrap_or(c_uint::MAX)).unwrap_or(0)
 }
 
-unsafe extern "C" fn result<T: Mode>(
+unsafe extern "C" fn result<T: GivesMode>(
     sw: *mut ffi::Mode,
     mretv: c_int,
     input: *mut *mut c_char,
     selected_line: c_uint,
 ) -> c_int {
-    let mode: &mut T = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     let action = catch_panic(|| {
         let event = match mretv {
             ffi::menu::CANCEL => Event::Cancel,
@@ -279,14 +313,14 @@ unsafe extern "C" fn result<T: Mode>(
     }
 }
 
-unsafe extern "C" fn get_display_value<T: Mode>(
-    sw: *const rofi_plugin_sys::Mode,
+unsafe extern "C" fn get_display_value<T: GivesMode>(
+    sw: *const ffi::Mode,
     selected_line: c_uint,
     state: *mut c_int,
     attr_list: *mut *mut glib_sys::GList,
     get_entry: c_int,
 ) -> *mut c_char {
-    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| {
         if get_entry == 0 {
             let style = mode.entry_style(selected_line as usize);
@@ -304,18 +338,37 @@ unsafe extern "C" fn get_display_value<T: Mode>(
     .unwrap_or(ptr::null_mut())
 }
 
-unsafe extern "C" fn token_match<T: Mode>(
-    sw: *const rofi_plugin_sys::Mode,
-    tokens: *mut *mut rofi_plugin_sys::RofiIntMatcher,
+unsafe extern "C" fn token_match<T: GivesMode>(
+    sw: *const ffi::Mode,
+    tokens: *mut *mut ffi::RofiIntMatcher,
     index: c_uint,
 ) -> c_int {
-    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+    let mode: &ModeOf<'_, T> = unsafe { &*ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| {
         let matcher = unsafe { Matcher::from_ffi(tokens) };
         mode.matches(index as usize, matcher)
     })
     .unwrap_or(false)
     .into()
+}
+
+unsafe extern "C" fn get_icon<T: GivesMode>(
+    sw: *const ffi::Mode,
+    selected_line: c_uint,
+    height: c_int,
+) -> *mut cairo_sys::cairo_surface_t {
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    catch_panic(|| {
+        const NEGATIVE_HEIGHT: &str = "negative height passed into get_icon";
+
+        let height: u32 = height.try_into().expect(NEGATIVE_HEIGHT);
+
+        mode.entry_icon(selected_line as usize, height)
+            .map_or_else(ptr::null_mut, |surface| {
+                ManuallyDrop::new(surface).to_raw_none()
+            })
+    })
+    .unwrap_or(ptr::null_mut())
 }
 
 fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
