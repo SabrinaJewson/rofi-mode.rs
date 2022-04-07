@@ -28,8 +28,7 @@
 //!         Ok(Self)
 //!     }
 //!     fn entries(&mut self) -> usize { 0 }
-//!     fn entry_style(&mut self, _line: usize) -> rofi_mode::Style { unreachable!() }
-//!     fn entry(&mut self, _line: usize) -> rofi_mode::Entry { unreachable!() }
+//!     fn entry_content(&mut self, _line: usize) -> rofi_mode::String { unreachable!() }
 //!     fn react(
 //!         &mut self,
 //!         _event: rofi_mode::Event,
@@ -135,11 +134,29 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// Get the number of entries offered by the mode.
     fn entries(&mut self) -> usize;
 
-    /// Get the text style of an entry in the list.
-    fn entry_style(&mut self, line: usize) -> Style;
+    /// Get the text content of a particular entry in the list.
+    fn entry_content(&mut self, line: usize) -> String;
 
-    /// Get the style and value to display of an entry in the list.
-    fn entry(&mut self, line: usize) -> Entry;
+    /// Get the text style of an entry in the list.
+    ///
+    /// The default implementation returns [`Style::NORMAL`].
+    fn entry_style(&mut self, _line: usize) -> Style {
+        Style::NORMAL
+    }
+
+    /// Get the text attributes associated with a particular entry in the list.
+    ///
+    /// The default implementation returns an empty attribute list.
+    fn entry_attributes(&mut self, _line: usize) -> Attributes {
+        Attributes::new()
+    }
+
+    /// Get the icon of a particular entry in the list, if it has one.
+    ///
+    /// The default implementation always returns [`None`].
+    fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
+        None
+    }
 
     /// Process the result of a user's selection
     /// in response to them pressing enter, escape etc,
@@ -154,13 +171,6 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// Only this function takes `&self`,
     /// since it is the only one that can be called from multiple threads.
     fn matches(&self, line: usize, matcher: Matcher<'_>) -> bool;
-
-    /// Obtains the icon of the entry if available.
-    ///
-    /// The default implementation always returns [`None`].
-    fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
-        None
-    }
 
     /// Get the message to show in the message bar.
     ///
@@ -347,17 +357,23 @@ unsafe extern "C" fn get_display_value<T: GivesMode>(
 ) -> *mut c_char {
     let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| {
+        let line = selected_line as usize;
+
+        if !state.is_null() {
+            let style = mode.entry_style(line);
+            unsafe { *state = style.bits() as c_int };
+        }
+
+        if !attr_list.is_null() {
+            assert!(unsafe { *attr_list }.is_null());
+            let attributes = mode.entry_attributes(line);
+            unsafe { *attr_list = ManuallyDrop::new(attributes).list };
+        }
+
         if get_entry == 0 {
-            let style = mode.entry_style(selected_line as usize);
-            unsafe { *state = style.bits() as _ };
             ptr::null_mut()
         } else {
-            let entry = mode.entry(selected_line as usize);
-            unsafe {
-                *state = entry.style.bits() as _;
-                *attr_list = ManuallyDrop::new(entry.attributes).list;
-                entry.content.into_raw().cast()
-            }
+            mode.entry_content(line).into_raw().cast()
         }
     })
     .unwrap_or(ptr::null_mut())
@@ -523,56 +539,6 @@ bitflags! {
         const HIGHTLIGHT = 32;
     }
 }
-
-/// An entry in the list on Rofi's window.
-#[derive(Debug)]
-pub struct Entry {
-    /// The text styling of the entry.
-    pub style: Style,
-    /// Text attributes of the entry.
-    pub attributes: Attributes,
-    /// The entry content itself.
-    pub content: String,
-}
-
-impl Entry {
-    /// Set some style flags on the entry.
-    ///
-    /// This will take the union of the existing and given styles.
-    #[must_use]
-    pub fn with_style(mut self, style: Style) -> Self {
-        self.style = self.style.union(style);
-        self
-    }
-
-    /// Add a text attribute to the entry.
-    #[must_use]
-    pub fn with_attribute<A: Into<pango::Attribute>>(mut self, attribute: A) -> Self {
-        self.attributes.push(attribute);
-        self
-    }
-}
-
-macro_rules! impl_entry_from_string {
-    ($($t:ty,)*) => { $(
-        impl From<$t> for Entry {
-            fn from(s: $t) -> Self {
-                Self {
-                    style: Style::NORMAL,
-                    attributes: Attributes::new(),
-                    content: s.into(),
-                }
-            }
-        }
-    )* };
-}
-impl_entry_from_string!(
-    &String,
-    &str,
-    &mut str,
-    std::string::String,
-    &std::string::String,
-);
 
 /// A collection of attributes that can be applied to text.
 #[derive(Debug)]

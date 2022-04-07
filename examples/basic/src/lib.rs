@@ -20,12 +20,12 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
         self.entries.len()
     }
 
-    fn entry_style(&mut self, _line: usize) -> rofi_mode::Style {
-        rofi_mode::Style::NORMAL
+    fn entry_content(&mut self, line: usize) -> rofi_mode::String {
+        (&self.entries[line]).into()
     }
 
-    fn entry(&mut self, line: usize) -> rofi_mode::Entry {
-        rofi_mode::Entry::from(&self.entries[line]).with_style(self.entry_style(line))
+    fn entry_icon(&mut self, _line: usize, height: u32) -> Option<rofi_mode::cairo::Surface> {
+        self.api.query_icon("computer", height).wait(&mut self.api)
     }
 
     fn react(
@@ -62,10 +62,6 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
 
     fn matches(&self, line: usize, matcher: rofi_mode::Matcher<'_>) -> bool {
         matcher.matches(&*self.entries[line])
-    }
-
-    fn entry_icon(&mut self, _line: usize, height: u32) -> Option<rofi_mode::cairo::Surface> {
-        self.api.query_icon("computer", height).wait(&mut self.api)
     }
 
     fn message(&mut self) -> rofi_mode::String {
