@@ -43,7 +43,7 @@ use ::{
         glib::{ffi as glib_sys, translate::ToGlibPtrMut},
     },
     std::{
-        ffi::{c_void, CStr, CString},
+        ffi::{c_void, CString},
         marker::PhantomData,
         mem::{self, ManuallyDrop},
         os::raw::{c_char, c_int, c_uint},
@@ -54,6 +54,9 @@ use ::{
 pub use rofi_plugin_sys as ffi;
 
 pub use pango;
+
+mod string;
+pub use string::String;
 
 /// A mode supported by Rofi.
 ///
@@ -213,16 +216,14 @@ unsafe extern "C" fn result<T: Mode>(
             _ => panic!("unexpected mretv {mretv:X}"),
         };
 
-        let mut input_string = unsafe { CStr::from_ptr(*input) }
-            .to_string_lossy()
-            .into_owned();
+        let input: &mut *mut c_char = unsafe { &mut *input };
+        let input_ptr: *mut c_char = mem::replace(&mut *input, ptr::null_mut());
+        let len = unsafe { libc::strlen(input_ptr) };
+        let mut input_string = unsafe { String::from_raw_parts(input_ptr.cast(), len, len) };
 
         let action = mode.react(event, &mut input_string, selected_line as usize);
 
-        unsafe {
-            glib_sys::g_free((*input).cast());
-            *input = glib_sys::g_strndup(input_string.as_ptr().cast(), input_string.len());
-        }
+        *input = input_string.into_raw().cast::<c_char>();
 
         action
     })
@@ -256,7 +257,7 @@ unsafe extern "C" fn get_display_value<T: Mode>(
             unsafe {
                 *state = style.bits() as _;
                 *attr_list = ManuallyDrop::new(attributes).list;
-                glib_sys::g_strndup(content.as_ptr().cast(), content.len())
+                content.into_raw().cast()
             }
         }
     })

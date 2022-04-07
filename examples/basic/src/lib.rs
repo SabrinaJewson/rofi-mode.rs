@@ -1,5 +1,3 @@
-use ::std::mem;
-
 rofi_mode::export_mode!(Mode);
 
 struct Mode {
@@ -24,18 +22,18 @@ impl rofi_mode::Mode for Mode {
         rofi_mode::Style::NORMAL
     }
 
-    fn entry(&self, line: usize) -> (rofi_mode::Style, rofi_mode::Attributes, String) {
+    fn entry(&self, line: usize) -> (rofi_mode::Style, rofi_mode::Attributes, rofi_mode::String) {
         (
             self.entry_style(line),
             rofi_mode::Attributes::new(),
-            self.entries[line].clone(),
+            (&*self.entries[line]).into(),
         )
     }
 
     fn react(
         &mut self,
         event: rofi_mode::Event,
-        input: &mut String,
+        input: &mut rofi_mode::String,
         selected_line: usize,
     ) -> rofi_mode::Action {
         match event {
@@ -45,7 +43,8 @@ impl rofi_mode::Mode for Mode {
                 return rofi_mode::Action::Exit;
             }
             rofi_mode::Event::CustomInput { alt: _ } => {
-                self.entries.push(mem::take(input));
+                self.entries.push(input.into());
+                input.clear();
             }
             rofi_mode::Event::DeleteEntry => {
                 self.entries.remove(selected_line);
