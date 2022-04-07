@@ -97,6 +97,7 @@ impl String {
     /// # Safety
     ///
     /// - `capacity` must be nonzero.
+    /// - `len` must be < `capacity`.
     /// - `ptr` must be non-null.
     /// - `ptr` must point to the start of an allocation of at least `capacity` bytes.
     /// - `ptr` must have provenance over at least `capacity` bytes.
@@ -105,7 +106,9 @@ impl String {
     /// - The byte at `ptr[len]` must be zero.
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut u8, len: usize, capacity: usize) -> Self {
+        debug_assert!(!ptr.is_null());
         debug_assert_ne!(capacity, 0);
+        debug_assert!(len < capacity);
         Self {
             ptr: unsafe { ptr::NonNull::new_unchecked(ptr) },
             len,

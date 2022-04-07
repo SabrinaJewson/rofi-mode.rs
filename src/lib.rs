@@ -60,7 +60,8 @@ pub use string::String;
 
 /// A mode supported by Rofi.
 ///
-/// You can implement this trait on your own type.
+/// You can implement this trait on your own type to define a mode,
+/// then export it in the shared library using [`export_mode!`].
 pub trait Mode: 'static + Sized + Send + Sync {
     /// The name of the mode.
     ///
@@ -219,7 +220,7 @@ unsafe extern "C" fn result<T: Mode>(
         let input: &mut *mut c_char = unsafe { &mut *input };
         let input_ptr: *mut c_char = mem::replace(&mut *input, ptr::null_mut());
         let len = unsafe { libc::strlen(input_ptr) };
-        let mut input_string = unsafe { String::from_raw_parts(input_ptr.cast(), len, len) };
+        let mut input_string = unsafe { String::from_raw_parts(input_ptr.cast(), len, len + 1) };
 
         let action = mode.react(event, &mut input_string, selected_line as usize);
 
