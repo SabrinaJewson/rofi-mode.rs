@@ -22,12 +22,8 @@ impl rofi_mode::Mode for Mode {
         rofi_mode::Style::NORMAL
     }
 
-    fn entry(&self, line: usize) -> (rofi_mode::Style, rofi_mode::Attributes, rofi_mode::String) {
-        (
-            self.entry_style(line),
-            rofi_mode::Attributes::new(),
-            (&*self.entries[line]).into(),
-        )
+    fn entry(&self, line: usize) -> rofi_mode::Entry {
+        rofi_mode::Entry::from(&self.entries[line]).with_style(self.entry_style(line))
     }
 
     fn react(

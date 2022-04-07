@@ -267,7 +267,7 @@ impl fmt::Write for String {
 }
 
 macro_rules! impl_from_stringlike {
-    ($($t:ty),*) => { $(
+    ($($t:ty,)*) => { $(
         impl From<$t> for String {
             fn from(s: $t) -> Self {
                 let mut this = Self::new();
@@ -277,7 +277,13 @@ macro_rules! impl_from_stringlike {
         }
     )* };
 }
-impl_from_stringlike!(std::string::String, &str, &String, &std::string::String);
+impl_from_stringlike!(
+    &String,
+    &str,
+    &mut str,
+    std::string::String,
+    &std::string::String,
+);
 
 macro_rules! impl_into_std_string {
     ($($t:ty),*) => { $(

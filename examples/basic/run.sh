@@ -14,5 +14,6 @@ then
 	sudo cp target/debug/librofi_plugin_example_basic.so "$ROFI_PREFIX"/lib/rofi/plugin_example_basic.so
 fi
 
-#gdb --args \
+# DEBUGGER can be e.g. "gdb --args"
+${DEBUGGER:-} \
 	"$ROFI_PREFIX"/bin/rofi -modi run,plugin-example-basic -show plugin-example-basic "$@"

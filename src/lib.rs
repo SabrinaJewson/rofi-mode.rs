@@ -16,6 +16,49 @@
 //!
 //! Now in your `lib.rs`,
 //! create a struct and implement the [`Mode`] trait for it.
+//! For example, a no-op mode with no entries:
+//!
+//! ```no_run
+//! struct Mode;
+//!
+//! impl rofi_mode::Mode for Mode {
+//!     const NAME: &'static str = "an-example-mode\0";
+//!     const DISPLAY_NAME: &'static str = "My example mode\0";
+//!     fn init() -> Result<Self, ()> {
+//!         Ok(Self)
+//!     }
+//!     fn entries(&self) -> usize { 0 }
+//!     fn entry_style(&self, _line: usize) -> rofi_mode::Style { unreachable!() }
+//!     fn entry(&self, _line: usize) -> rofi_mode::Entry { unreachable!() }
+//!     fn react(
+//!         &mut self,
+//!         event: rofi_mode::Event,
+//!         input: &mut rofi_mode::String,
+//!         selected_line: usize,
+//!     ) -> rofi_mode::Action {
+//!         rofi_mode::Action::Exit
+//!     }
+//!     fn matches(&self, line: usize, matcher: rofi_mode::Matcher<'_>) -> bool {
+//!         unreachable!()
+//!     }
+//! }
+//! ```
+//!
+//! You then need to export your mode to Rofi via the [`export_mode!`] macro:
+//!
+//! ```ignore
+//! rofi_mode::export_mode!(Mode);
+//! ```
+//!
+//! Build your library using `cargo build`
+//! then copy the resulting dylib file into `/lib/rofi`
+//! so that Rofi will pick up on it.
+//! You can then run your mode from Rofi's command line:
+//!
+//! ```sh
+//! rofi -modi an-example-mode -show an-example-mode
+//! ```
+//!
 //!
 //! [`Mode`]: https://docs.rs/rofi-mode/latest/rofi_mode/trait.Mode.html
 #![warn(
@@ -69,10 +112,9 @@ pub trait Mode: 'static + Sized + Send + Sync {
     /// and contain no intermediate null characters.
     const NAME: &'static str;
 
-    /// The display name of the mode.
+    /// The display name of the mode to be shown as the prompt before the colon in Rofi.
     ///
-    /// This must be null-terminated,
-    /// <= 128 bytes long (including the terminator)
+    /// This string must be null-terminated
     /// and contain no intermediate null characters.
     const DISPLAY_NAME: &'static str;
 
@@ -96,7 +138,7 @@ pub trait Mode: 'static + Sized + Send + Sync {
     fn entry_style(&self, line: usize) -> Style;
 
     /// Get the style and value to display of an entry in the list.
-    fn entry(&self, line: usize) -> (Style, Attributes, String);
+    fn entry(&self, line: usize) -> Entry;
 
     /// Process the result of a user's selection
     /// in response to them pressing enter, escape etc,
@@ -108,6 +150,9 @@ pub trait Mode: 'static + Sized + Send + Sync {
 }
 
 /// Declare a mode to be exported by this crate.
+///
+/// This declares a public `#[no_mangle]` static item named `mode`
+/// which Rofi reads in from your plugin cdylib.
 #[macro_export]
 macro_rules! export_mode {
     ($t:ty $(,)?) => {
@@ -117,12 +162,20 @@ macro_rules! export_mode {
 }
 
 /// Convert an implementation of [`Mode`] to its raw FFI `Mode` struct.
+///
+/// You generally do not want to call this function unless you're doing low-level stuff -
+/// most of the time the [`export_mode!`] macro is what you want.
+///
+/// # Panics
+///
+/// This function panics if the implementation of [`Mode`] is invalid.
 #[must_use]
 pub const fn raw_mode<T>() -> ffi::Mode
 where
     // Workaround to get trait bounds in `const fn` on stable
     <[T; 0] as IntoIterator>::Item: Mode,
 {
+    assert_c_str(T::DISPLAY_NAME);
     <RawModeHelper<T>>::VALUE
 }
 
@@ -131,11 +184,6 @@ impl<T: Mode> RawModeHelper<T> {
     const VALUE: ffi::Mode = ffi::Mode {
         name: assert_c_str(T::NAME),
         _init: Some(init::<T>),
-        cfg_name_key: {
-            let s = T::DISPLAY_NAME;
-            assert_c_str(s);
-            display_name(s)
-        },
         _destroy: Some(destroy::<T>),
         _get_num_entries: Some(get_num_entries::<T>),
         _result: Some(result::<T>),
@@ -155,17 +203,6 @@ const fn assert_c_str(s: &'static str) -> *mut c_char {
     s.as_ptr() as _
 }
 
-const fn display_name(s: &'static str) -> [c_char; 128] {
-    assert!(s.len() <= 128, "string is longer than 128 bytes");
-    let mut buf = [0; 128];
-    let mut i = 0;
-    while i < s.len() {
-        buf[i] = s.as_bytes()[i] as _;
-        i += 1;
-    }
-    buf
-}
-
 unsafe extern "C" fn init<T: Mode>(sw: *mut ffi::Mode) -> c_int {
     if unsafe { ffi::mode_get_private_data(sw) }.is_null() {
         let boxed: Box<T> = match catch_panic(|| T::init().map(Box::new)) {
@@ -174,6 +211,8 @@ unsafe extern "C" fn init<T: Mode>(sw: *mut ffi::Mode) -> c_int {
         };
         let ptr = Box::into_raw(boxed).cast::<c_void>();
         unsafe { ffi::mode_set_private_data(sw, ptr) };
+
+        unsafe { (*sw).display_name = glib_sys::g_strdup(T::DISPLAY_NAME.as_ptr().cast()) };
     }
     true.into()
 }
@@ -254,11 +293,11 @@ unsafe extern "C" fn get_display_value<T: Mode>(
             unsafe { *state = style.bits() as _ };
             ptr::null_mut()
         } else {
-            let (style, attributes, content) = mode.entry(selected_line as usize);
+            let entry = mode.entry(selected_line as usize);
             unsafe {
-                *state = style.bits() as _;
-                *attr_list = ManuallyDrop::new(attributes).list;
-                content.into_raw().cast()
+                *state = entry.style.bits() as _;
+                *attr_list = ManuallyDrop::new(entry.attributes).list;
+                entry.content.into_raw().cast()
             }
         }
     })
@@ -358,6 +397,56 @@ bitflags! {
     }
 }
 
+/// An entry in the list on Rofi's window.
+#[derive(Debug)]
+pub struct Entry {
+    /// The text styling of the entry.
+    pub style: Style,
+    /// Text attributes of the entry.
+    pub attributes: Attributes,
+    /// The entry content itself.
+    pub content: String,
+}
+
+impl Entry {
+    /// Set some style flags on the entry.
+    ///
+    /// This will take the union of the existing and given styles.
+    #[must_use]
+    pub fn with_style(mut self, style: Style) -> Self {
+        self.style = self.style.union(style);
+        self
+    }
+
+    /// Add a text attribute to the entry.
+    #[must_use]
+    pub fn with_attribute<A: Into<pango::Attribute>>(mut self, attribute: A) -> Self {
+        self.attributes.push(attribute);
+        self
+    }
+}
+
+macro_rules! impl_entry_from_string {
+    ($($t:ty,)*) => { $(
+        impl From<$t> for Entry {
+            fn from(s: $t) -> Self {
+                Self {
+                    style: Style::NORMAL,
+                    attributes: Attributes::new(),
+                    content: s.into(),
+                }
+            }
+        }
+    )* };
+}
+impl_entry_from_string!(
+    &String,
+    &str,
+    &mut str,
+    std::string::String,
+    &std::string::String,
+);
+
 /// A collection of attributes that can be applied to text.
 #[derive(Debug)]
 pub struct Attributes {
@@ -368,7 +457,7 @@ unsafe impl Send for Attributes {}
 unsafe impl Sync for Attributes {}
 
 impl Attributes {
-    /// Create a collection of attributes.
+    /// Create a new empty collection of attributes.
     #[must_use]
     pub const fn new() -> Self {
         Self {
