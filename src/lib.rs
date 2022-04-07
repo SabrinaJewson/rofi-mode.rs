@@ -28,7 +28,7 @@
 //!         Ok(Self)
 //!     }
 //!     fn entries(&mut self) -> usize { 0 }
-//!     fn entry_content(&mut self, _line: usize) -> rofi_mode::String { unreachable!() }
+//!     fn entry_content(&self, _line: usize) -> rofi_mode::String { unreachable!() }
 //!     fn react(
 //!         &mut self,
 //!         _event: rofi_mode::Event,
@@ -85,7 +85,7 @@ use ::{
         glib::{ffi as glib_sys, translate::ToGlibPtrMut},
     },
     std::{
-        ffi::{c_void, CString},
+        ffi::{c_void, CStr, CString},
         marker::PhantomData,
         mem::{self, ManuallyDrop},
         os::raw::{c_char, c_int, c_uint},
@@ -135,19 +135,19 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     fn entries(&mut self) -> usize;
 
     /// Get the text content of a particular entry in the list.
-    fn entry_content(&mut self, line: usize) -> String;
+    fn entry_content(&self, line: usize) -> String;
 
     /// Get the text style of an entry in the list.
     ///
     /// The default implementation returns [`Style::NORMAL`].
-    fn entry_style(&mut self, _line: usize) -> Style {
+    fn entry_style(&self, _line: usize) -> Style {
         Style::NORMAL
     }
 
     /// Get the text attributes associated with a particular entry in the list.
     ///
     /// The default implementation returns an empty attribute list.
-    fn entry_attributes(&mut self, _line: usize) -> Attributes {
+    fn entry_attributes(&self, _line: usize) -> Attributes {
         Attributes::new()
     }
 
@@ -167,9 +167,6 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     fn react(&mut self, event: Event, input: &mut String) -> Action;
 
     /// Find whether a specific line matches the given matcher.
-    ///
-    /// Only this function takes `&self`,
-    /// since it is the only one that can be called from multiple threads.
     fn matches(&self, line: usize, matcher: Matcher<'_>) -> bool;
 
     /// Get the completed value of an entry.
@@ -183,8 +180,17 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// [`Self::react`] is called then instead.
     ///
     /// The default implementation forwards to [`Self::entry_content`].
-    fn completed(&mut self, line: usize) -> String {
+    fn completed(&self, line: usize) -> String {
         self.entry_content(line)
+    }
+
+    /// Preprocess the user's input before using it to filter and/or sort.
+    ///
+    /// This is typically used to strip markup.
+    ///
+    /// The default implementation returns the input unchanged.
+    fn preprocess_input(&mut self, input: &str) -> String {
+        input.into()
     }
 
     /// Get the message to show in the message bar.
@@ -254,6 +260,7 @@ impl<T: GivesMode> RawModeHelper<T> {
         _token_match: Some(token_match::<T>),
         _get_icon: Some(get_icon::<T>),
         _get_completion: Some(get_completion::<T>),
+        _preprocess_input: Some(preprocess_input::<T>),
         _get_message: Some(get_message::<T>),
         ..ffi::Mode::default()
     };
@@ -371,7 +378,7 @@ unsafe extern "C" fn get_display_value<T: GivesMode>(
     attr_list: *mut *mut glib_sys::GList,
     get_entry: c_int,
 ) -> *mut c_char {
-    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    let mode: &ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| {
         let line = selected_line as usize;
 
@@ -432,11 +439,29 @@ unsafe extern "C" fn get_completion<T: GivesMode>(
     sw: *const ffi::Mode,
     selected_line: c_uint,
 ) -> *mut c_char {
-    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    let mode: &ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     abort_on_panic(|| {
         mode.completed(selected_line as usize)
             .into_raw()
             .cast::<c_char>()
+    })
+}
+
+unsafe extern "C" fn preprocess_input<T: GivesMode>(
+    sw: *mut ffi::Mode,
+    input: *const c_char,
+) -> *mut c_char {
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    abort_on_panic(|| {
+        let input = unsafe { CStr::from_ptr(input) }
+            .to_str()
+            .expect("Input is not valid UTF-8");
+        let processed = mode.preprocess_input(input);
+        if processed.is_empty() {
+            ptr::null_mut()
+        } else {
+            processed.into_raw().cast::<c_char>()
+        }
     })
 }
 

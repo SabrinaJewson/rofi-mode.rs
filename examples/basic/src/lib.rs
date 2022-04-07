@@ -20,7 +20,7 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
         self.entries.len()
     }
 
-    fn entry_content(&mut self, line: usize) -> rofi_mode::String {
+    fn entry_content(&self, line: usize) -> rofi_mode::String {
         (&self.entries[line]).into()
     }
 
