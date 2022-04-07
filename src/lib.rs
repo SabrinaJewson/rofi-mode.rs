@@ -43,10 +43,11 @@ use ::{
         glib::{ffi as glib_sys, translate::ToGlibPtrMut},
     },
     std::{
-        ffi::{c_void, CString},
+        ffi::{c_void, CStr, CString},
         marker::PhantomData,
-        mem::ManuallyDrop,
-        ptr,
+        mem::{self, ManuallyDrop},
+        os::raw::{c_char, c_int, c_uint},
+        panic, process, ptr,
     },
 };
 
@@ -104,193 +105,191 @@ pub trait Mode: 'static + Sized + Send + Sync {
 
 /// Declare a mode to be exported by this crate.
 #[macro_export]
-macro_rules! declare_mode {
+macro_rules! export_mode {
     ($t:ty $(,)?) => {
         #[no_mangle]
-        pub static mut mode: $crate::ffi::Mode = $crate::ffi::Mode {
-            name: $crate::__private::assert_c_str(<$t as $crate::Mode>::NAME),
-            cfg_name_key: {
-                let s = <$t as $crate::Mode>::DISPLAY_NAME;
-                $crate::__private::assert_c_str(s);
-                $crate::__private::display_name(s)
-            },
-            _init: $crate::__private::Some($crate::__private::init::<$t>),
-            _destroy: $crate::__private::Some($crate::__private::destroy::<$t>),
-            _get_num_entries: $crate::__private::Some($crate::__private::get_num_entries::<$t>),
-            _result: $crate::__private::Some($crate::__private::result::<$t>),
-            _get_display_value: $crate::__private::Some($crate::__private::get_display_value::<$t>),
-            _token_match: $crate::__private::Some($crate::__private::token_match::<$t>),
-            ..$crate::ffi::Mode::default()
-        };
+        pub static mut mode: $crate::ffi::Mode = $crate::raw_mode::<$t>();
     };
 }
 
-// Not public API.
-#[doc(hidden)]
-#[allow(clippy::must_use_candidate)]
-pub mod __private {
-    use {
-        crate::{ffi, glib_sys, Action, Event, Matcher, Mode},
-        ::std::{
-            ffi::CStr,
-            mem::{self, ManuallyDrop},
-            os::raw::{c_char, c_int, c_uint, c_void},
-            panic, process, ptr,
+/// Convert an implementation of [`Mode`] to its raw FFI `Mode` struct.
+#[must_use]
+pub const fn raw_mode<T>() -> ffi::Mode
+where
+    // Workaround to get trait bounds in `const fn` on stable
+    <[T; 0] as IntoIterator>::Item: Mode,
+{
+    <RawModeHelper<T>>::VALUE
+}
+
+struct RawModeHelper<T>(T);
+impl<T: Mode> RawModeHelper<T> {
+    const VALUE: ffi::Mode = ffi::Mode {
+        name: assert_c_str(T::NAME),
+        _init: Some(init::<T>),
+        cfg_name_key: {
+            let s = T::DISPLAY_NAME;
+            assert_c_str(s);
+            display_name(s)
         },
+        _destroy: Some(destroy::<T>),
+        _get_num_entries: Some(get_num_entries::<T>),
+        _result: Some(result::<T>),
+        _get_display_value: Some(get_display_value::<T>),
+        _token_match: Some(token_match::<T>),
+        ..ffi::Mode::default()
     };
+}
 
-    pub use Some;
+const fn assert_c_str(s: &'static str) -> *mut c_char {
+    let mut i = 0;
+    while i + 1 < s.len() {
+        assert!(s.as_bytes()[i] != 0, "string contains intermediary null");
+        i += 1;
+    }
+    assert!(s.as_bytes()[i] == 0, "string is not null-terminated");
+    s.as_ptr() as _
+}
 
-    pub const fn assert_c_str(s: &'static str) -> *mut c_char {
-        let mut i = 0;
-        while i + 1 < s.len() {
-            assert!(s.as_bytes()[i] != 0, "string contains intermediary null");
-            i += 1;
+const fn display_name(s: &'static str) -> [c_char; 128] {
+    assert!(s.len() <= 128, "string is longer than 128 bytes");
+    let mut buf = [0; 128];
+    let mut i = 0;
+    while i < s.len() {
+        buf[i] = s.as_bytes()[i] as _;
+        i += 1;
+    }
+    buf
+}
+
+unsafe extern "C" fn init<T: Mode>(sw: *mut ffi::Mode) -> c_int {
+    if unsafe { ffi::mode_get_private_data(sw) }.is_null() {
+        let boxed: Box<T> = match catch_panic(|| T::init().map(Box::new)) {
+            Ok(Ok(boxed)) => boxed,
+            Ok(Err(())) | Err(()) => return false.into(),
+        };
+        let ptr = Box::into_raw(boxed).cast::<c_void>();
+        unsafe { ffi::mode_set_private_data(sw, ptr) };
+    }
+    true.into()
+}
+
+unsafe extern "C" fn destroy<T: Mode>(sw: *mut ffi::Mode) {
+    let ptr = unsafe { ffi::mode_get_private_data(sw) };
+    if ptr.is_null() {
+        return;
+    }
+    let boxed = unsafe { <Box<T>>::from_raw(ptr.cast()) };
+    let _ = catch_panic(|| drop(boxed));
+    unsafe { ffi::mode_set_private_data(sw, ptr::null_mut()) };
+}
+
+unsafe extern "C" fn get_num_entries<T: Mode>(sw: *const ffi::Mode) -> c_uint {
+    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+    catch_panic(|| mode.entries().try_into().unwrap_or(c_uint::MAX)).unwrap_or(0)
+}
+
+unsafe extern "C" fn result<T: Mode>(
+    sw: *mut ffi::Mode,
+    mretv: c_int,
+    input: *mut *mut c_char,
+    selected_line: c_uint,
+) -> c_int {
+    let mode: &mut T = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    let action = catch_panic(|| {
+        let event = match mretv {
+            ffi::menu::CANCEL => Event::Cancel,
+            _ if mretv & ffi::menu::OK != 0 => Event::Ok {
+                alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
+            },
+            _ if mretv & ffi::menu::CUSTOM_INPUT != 0 => Event::CustomInput {
+                alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
+            },
+            ffi::menu::COMPLETE => Event::Complete,
+            ffi::menu::ENTRY_DELETE => Event::DeleteEntry,
+            _ if mretv & ffi::menu::CUSTOM_COMMAND != 0 => {
+                Event::CustomCommand((mretv & ffi::menu::LOWER_MASK) as u8)
+            }
+            _ => panic!("unexpected mretv {mretv:X}"),
+        };
+
+        let mut input_string = unsafe { CStr::from_ptr(*input) }
+            .to_string_lossy()
+            .into_owned();
+
+        let action = mode.react(event, &mut input_string, selected_line as usize);
+
+        unsafe {
+            glib_sys::g_free((*input).cast());
+            *input = glib_sys::g_strndup(input_string.as_ptr().cast(), input_string.len());
         }
-        assert!(s.as_bytes()[i] == 0, "string is not null-terminated");
-        s.as_ptr() as _
+
+        action
+    })
+    .unwrap_or(Action::Exit);
+
+    match action {
+        Action::SetMode(mode) => mode.into(),
+        Action::Next => ffi::NEXT_DIALOG,
+        Action::Previous => ffi::PREVIOUS_DIALOG,
+        Action::Reload => ffi::RELOAD_DIALOG,
+        Action::Reset => ffi::RESET_DIALOG,
+        Action::Exit => ffi::EXIT,
     }
+}
 
-    pub const fn display_name(s: &'static str) -> [c_char; 128] {
-        assert!(s.len() <= 128, "string is longer than 128 bytes");
-        let mut buf = [0; 128];
-        let mut i = 0;
-        while i < s.len() {
-            buf[i] = s.as_bytes()[i] as _;
-            i += 1;
-        }
-        buf
-    }
-
-    pub unsafe extern "C" fn init<T: Mode>(sw: *mut ffi::Mode) -> c_int {
-        if unsafe { ffi::mode_get_private_data(sw) }.is_null() {
-            let boxed = match catch_panic(|| Box::new(T::init())) {
-                Ok(boxed) => boxed,
-                Err(()) => return false.into(),
-            };
-            let ptr = Box::into_raw(boxed).cast::<c_void>();
-            unsafe { ffi::mode_set_private_data(sw, ptr) };
-        }
-        true.into()
-    }
-
-    pub unsafe extern "C" fn destroy<T: Mode>(sw: *mut ffi::Mode) {
-        let ptr = unsafe { ffi::mode_get_private_data(sw) };
-        if ptr.is_null() {
-            return;
-        }
-        let boxed = unsafe { <Box<T>>::from_raw(ptr.cast()) };
-        let _ = catch_panic(|| drop(boxed));
-        unsafe { ffi::mode_set_private_data(sw, ptr::null_mut()) };
-    }
-
-    pub unsafe extern "C" fn get_num_entries<T: Mode>(sw: *const ffi::Mode) -> c_uint {
-        let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
-        catch_panic(|| mode.entries().try_into().unwrap_or(c_uint::MAX)).unwrap_or(0)
-    }
-
-    pub unsafe extern "C" fn result<T: Mode>(
-        sw: *mut ffi::Mode,
-        mretv: c_int,
-        input: *mut *mut c_char,
-        selected_line: c_uint,
-    ) -> c_int {
-        let mode: &mut T = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
-        let action = catch_panic(|| {
-            let event = match mretv {
-                ffi::menu::CANCEL => Event::Cancel,
-                _ if mretv & ffi::menu::OK != 0 => Event::Ok {
-                    alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
-                },
-                _ if mretv & ffi::menu::CUSTOM_INPUT != 0 => Event::CustomInput {
-                    alt: mretv & ffi::menu::CUSTOM_ACTION != 0,
-                },
-                ffi::menu::COMPLETE => Event::Complete,
-                ffi::menu::ENTRY_DELETE => Event::DeleteEntry,
-                _ if mretv & ffi::menu::CUSTOM_COMMAND != 0 => {
-                    Event::CustomCommand((mretv & ffi::menu::LOWER_MASK) as u8)
-                }
-                _ => panic!("unexpected mretv {mretv:X}"),
-            };
-
-            let mut input_string = unsafe { CStr::from_ptr(*input) }
-                .to_string_lossy()
-                .into_owned();
-
-            let action = mode.react(event, &mut input_string, selected_line as usize);
-
+unsafe extern "C" fn get_display_value<T: Mode>(
+    sw: *const rofi_plugin_sys::Mode,
+    selected_line: c_uint,
+    state: *mut c_int,
+    attr_list: *mut *mut glib_sys::GList,
+    get_entry: c_int,
+) -> *mut c_char {
+    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+    catch_panic(|| {
+        if get_entry == 0 {
+            let style = mode.entry_style(selected_line as usize);
+            unsafe { *state = style.bits() as _ };
+            ptr::null_mut()
+        } else {
+            let (style, attributes, content) = mode.entry(selected_line as usize);
             unsafe {
-                glib_sys::g_free((*input).cast());
-                *input = glib_sys::g_strndup(input_string.as_ptr().cast(), input_string.len());
+                *state = style.bits() as _;
+                *attr_list = ManuallyDrop::new(attributes).list;
+                glib_sys::g_strndup(content.as_ptr().cast(), content.len())
             }
+        }
+    })
+    .unwrap_or(ptr::null_mut())
+}
 
-            action
-        })
-        .unwrap_or(Action::Exit);
+unsafe extern "C" fn token_match<T: Mode>(
+    sw: *const rofi_plugin_sys::Mode,
+    tokens: *mut *mut rofi_plugin_sys::RofiIntMatcher,
+    index: c_uint,
+) -> c_int {
+    let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
+    catch_panic(|| {
+        let matcher = unsafe { Matcher::from_ffi(tokens) };
+        mode.matches(index as usize, matcher)
+    })
+    .unwrap_or(false)
+    .into()
+}
 
-        match action {
-            Action::SetMode(mode) => mode.into(),
-            Action::Next => ffi::NEXT_DIALOG,
-            Action::Previous => ffi::PREVIOUS_DIALOG,
-            Action::Reload => ffi::RELOAD_DIALOG,
-            Action::Reset => ffi::RESET_DIALOG,
-            Action::Exit => ffi::EXIT,
+fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
+    struct AbortOnDrop;
+    impl Drop for AbortOnDrop {
+        fn drop(&mut self) {
+            process::abort();
         }
     }
 
-    pub unsafe extern "C" fn get_display_value<T: Mode>(
-        sw: *const rofi_plugin_sys::Mode,
-        selected_line: c_uint,
-        state: *mut c_int,
-        attr_list: *mut *mut glib_sys::GList,
-        get_entry: c_int,
-    ) -> *mut c_char {
-        let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
-        catch_panic(|| {
-            if get_entry == 0 {
-                let style = mode.entry_style(selected_line as usize);
-                unsafe { *state = style.bits() as _ };
-                ptr::null_mut()
-            } else {
-                let (style, attributes, content) = mode.entry(selected_line as usize);
-                unsafe {
-                    *state = style.bits() as _;
-                    *attr_list = ManuallyDrop::new(attributes).list;
-                    glib_sys::g_strndup(content.as_ptr().cast(), content.len())
-                }
-            }
-        })
-        .unwrap_or(ptr::null_mut())
-    }
-
-    pub unsafe extern "C" fn token_match<T: Mode>(
-        sw: *const rofi_plugin_sys::Mode,
-        tokens: *mut *mut rofi_plugin_sys::RofiIntMatcher,
-        index: c_uint,
-    ) -> c_int {
-        let mode: &T = unsafe { &*ffi::mode_get_private_data(sw).cast() };
-        catch_panic(|| {
-            let matcher = unsafe { Matcher::from_ffi(tokens) };
-            mode.matches(index as usize, matcher)
-        })
-        .unwrap_or(false)
-        .into()
-    }
-
-    fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
-        struct AbortOnDrop;
-        impl Drop for AbortOnDrop {
-            fn drop(&mut self) {
-                process::abort();
-            }
-        }
-
-        panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|e| {
-            let guard = AbortOnDrop;
-            drop(e);
-            mem::forget(guard);
-        })
-    }
+    panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|e| {
+        let guard = AbortOnDrop;
+        drop(e);
+        mem::forget(guard);
+    })
 }
 
 /// An event triggered by the user.
