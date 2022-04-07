@@ -94,6 +94,8 @@ impl Api<'_> {
     ///
     /// The returned icon will be the best match for the requested size,
     /// but you may need to resize it to desired size.
+    ///
+    /// It may be ergonomically preferable to use [`IconRequest::wait`] instead of this function.
     #[must_use]
     #[allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
     pub fn retrieve_icon(&mut self, request: IconRequest) -> Option<cairo::Surface> {

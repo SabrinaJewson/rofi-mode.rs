@@ -3,8 +3,8 @@
 //! # Getting started
 //!
 //! First of all,
-//! create a new library with `cargo new --lib my_awesome_plugin`.
-//! In its `Cargo.toml`, make sure to put this:
+//! create a new library with `cargo new --lib my_awesome_plugin`
+//! and add these lines to the `Cargo.toml`:
 //!
 //! ```toml
 //! [lib]
@@ -12,11 +12,11 @@
 //! ```
 //!
 //! That will force Cargo to generate your library as a `.so` file,
-//! which is which Rofi loads its plugins from.
+//! which is what Rofi loads its plugins from.
 //!
 //! Now in your `lib.rs`,
 //! create a struct and implement the [`Mode`] trait for it.
-//! For example, a no-op mode with no entries:
+//! For example, here is a no-op mode with no entries:
 //!
 //! ```no_run
 //! struct Mode;
@@ -49,8 +49,11 @@
 //! ```
 //!
 //! Build your library using `cargo build`
-//! then copy the resulting dylib file into `/lib/rofi`
-//! so that Rofi will pick up on it.
+//! then copy the resulting dylib file
+//! (e.g. `/target/debug/libmy_awesome_plugin.so`)
+//! into `/lib/rofi`
+//! so that Rofi will pick up on it
+//! when it starts up.
 //! You can then run your mode from Rofi's command line:
 //!
 //! ```sh
@@ -86,7 +89,6 @@ use ::{
     },
     std::{
         ffi::{c_void, CStr, CString},
-        marker::PhantomData,
         mem::{self, ManuallyDrop},
         os::raw::{c_char, c_int, c_uint},
         panic, process, ptr,
@@ -154,6 +156,8 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// Get the icon of a particular entry in the list, if it has one.
     ///
     /// The default implementation always returns [`None`].
+    ///
+    /// You can load icons using [`Api::query_icon`].
     fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
         None
     }
@@ -669,13 +673,12 @@ impl<A: Into<pango::Attribute>> FromIterator<A> for Attributes {
 #[derive(Debug, Clone, Copy)]
 pub struct Matcher<'a> {
     ptr: Option<&'a *mut ffi::RofiIntMatcher>,
-    lifetime: PhantomData<&'a *mut ffi::RofiIntMatcher>,
 }
 
 unsafe impl Send for Matcher<'_> {}
 unsafe impl Sync for Matcher<'_> {}
 
-impl<'a> Matcher<'a> {
+impl Matcher<'_> {
     pub(crate) unsafe fn from_ffi(ffi: *const *mut ffi::RofiIntMatcher) -> Self {
         Self {
             ptr: if ffi.is_null() {
@@ -683,12 +686,9 @@ impl<'a> Matcher<'a> {
             } else {
                 Some(unsafe { &*ffi })
             },
-            lifetime: PhantomData,
         }
     }
-}
 
-impl Matcher<'_> {
     /// Check whether this matcher matches the given string.
     ///
     /// # Panics
@@ -696,11 +696,17 @@ impl Matcher<'_> {
     /// Panics if the inner string contains null bytes.
     #[must_use]
     pub fn matches(self, s: &str) -> bool {
+        let s = CString::new(s).expect("string contains null bytes");
+        self.matches_c_str(&*s)
+    }
+
+    /// Check whether this matches matches the given C string.
+    #[must_use]
+    pub fn matches_c_str(self, s: &CStr) -> bool {
         let ptr: *const *mut ffi::RofiIntMatcher = match self.ptr {
             Some(ptr) => ptr,
             None => return true,
         };
-        let c_string = CString::new(s).expect("string contains null bytes");
-        0 != unsafe { ffi::helper::token_match(ptr, c_string.as_ptr()) }
+        0 != unsafe { ffi::helper::token_match(ptr, s.as_ptr()) }
     }
 }

@@ -25,6 +25,9 @@ use ::libc::{calloc, free, malloc, realloc};
 /// - Is always null-terminated.
 /// - Is allocated using glib's allocator
 ///     (`g_malloc`, `g_realloc` and `g_free`).
+///
+/// You can use our [`format!`](crate::format!) macro to format these strings,
+/// just like with the standard library.
 pub struct String {
     ptr: ptr::NonNull<u8>,
     // Doesn't include the null terminator, so is always < capacity.
@@ -351,6 +354,8 @@ impl Borrow<str> for String {
 }
 
 /// Format a Rofi [`String`] using interpolation of runtime expressions.
+///
+/// See the documentation of [`std::format!`] for more details.
 #[macro_export]
 macro_rules! format {
     ($($tt:tt)*) => { $crate::format(::core::format_args!($($tt)*)) };
@@ -358,7 +363,7 @@ macro_rules! format {
 
 /// Format a Rofi [`String`] using a set of format arguments.
 ///
-/// Usually you will want to use the [`format!`] macro instead of this function.
+/// Usually you will want to use the [`format!`](crate::format!) macro instead of this function.
 #[must_use]
 pub fn format(args: fmt::Arguments<'_>) -> String {
     let mut s = String::new();
