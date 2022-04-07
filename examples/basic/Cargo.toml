@@ -1,0 +1,11 @@
+[package]
+name = "rofi-plugin-example-basic"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rofi-mode = { path = "../.." }
+
+[lib]
+crate-type = ["cdylib"]
