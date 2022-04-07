@@ -62,6 +62,7 @@
 //!
 //!
 //! [`Mode`]: https://docs.rs/rofi-mode/latest/rofi_mode/trait.Mode.html
+//! [`export_mode!`]: https://docs.rs/rofi-mode/latest/rofi_mode/macro.export_mode.html
 #![warn(
     noop_method_call,
     trivial_casts,

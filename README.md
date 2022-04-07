@@ -64,5 +64,6 @@ rofi -modi an-example-mode -show an-example-mode
 
 
 [`Mode`]: https://docs.rs/rofi-mode/latest/rofi_mode/trait.Mode.html
+[`export_mode!`]: https://docs.rs/rofi-mode/latest/rofi_mode/macro.export_mode.html
 
 License: MIT

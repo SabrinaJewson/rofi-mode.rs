@@ -14,7 +14,7 @@ bitflags = "1.3.2"
 cairo-rs = "0.15.10"
 libc = "0.2.122"
 pango = "0.15.10"
-rofi-plugin-sys = { git = "https://github.com/SabrinaJewson/rofi-plugin-sys.rs" }
+rofi-plugin-sys = "0.1.0"
 
 [workspace]
 members = ["dev", "examples/basic"]
