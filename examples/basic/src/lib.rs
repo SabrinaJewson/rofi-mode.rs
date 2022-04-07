@@ -63,4 +63,13 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     fn entry_icon(&mut self, _line: usize, height: u32) -> Option<rofi_mode::cairo::Surface> {
         self.api.query_icon("computer", height).wait(&mut self.api)
     }
+
+    fn message(&mut self) -> rofi_mode::String {
+        let entries = self.entries.len();
+        if entries == 1 {
+            "1 entry registered".into()
+        } else {
+            rofi_mode::format!("{entries} entries registered")
+        }
+    }
 }

@@ -98,7 +98,7 @@ use ::{
 pub use {cairo, pango, rofi_plugin_sys as ffi};
 
 mod string;
-pub use string::String;
+pub use string::{String, format};
 
 pub mod api;
 pub use api::Api;
@@ -159,6 +159,15 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
         None
     }
+
+    /// Get the message to show in the message bar.
+    ///
+    /// The returned string must be valid Pango markup.
+    ///
+    /// The default implementation returns an empty string.
+    fn message(&mut self) -> String {
+        String::new()
+    }
 }
 
 /// Declare a mode to be exported by this crate.
@@ -217,6 +226,7 @@ impl<T: GivesMode> RawModeHelper<T> {
         _get_display_value: Some(get_display_value::<T>),
         _token_match: Some(token_match::<T>),
         _get_icon: Some(get_icon::<T>),
+        _get_message: Some(get_message::<T>),
         ..ffi::Mode::default()
     };
 }
@@ -369,6 +379,18 @@ unsafe extern "C" fn get_icon<T: GivesMode>(
             .map_or_else(ptr::null_mut, |surface| {
                 ManuallyDrop::new(surface).to_raw_none()
             })
+    })
+    .unwrap_or(ptr::null_mut())
+}
+
+unsafe extern "C" fn get_message<T: GivesMode>(sw: *const ffi::Mode) -> *mut c_char {
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    catch_panic(|| {
+        let message = mode.message();
+        if message.is_empty() {
+            return ptr::null_mut();
+        }
+        message.into_raw().cast::<c_char>()
     })
     .unwrap_or(ptr::null_mut())
 }

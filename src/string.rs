@@ -2,7 +2,7 @@ use ::std::{
     borrow::Borrow,
     cmp,
     ffi::CStr,
-    fmt::{self, Debug, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter, Write as _},
     hash::{Hash, Hasher},
     mem::ManuallyDrop,
     ops::Deref,
@@ -350,6 +350,23 @@ impl Borrow<str> for String {
     }
 }
 
+/// Format a Rofi [`String`] using interpolation of runtime expressions.
+#[macro_export]
+macro_rules! format {
+    ($($tt:tt)*) => { $crate::format(::core::format_args!($($tt)*)) };
+}
+
+/// Format a Rofi [`String`] using a set of format arguments.
+///
+/// Usually you will want to use the [`format!`] macro instead of this function.
+#[must_use]
+pub fn format(args: fmt::Arguments<'_>) -> String {
+    let mut s = String::new();
+    s.write_fmt(args)
+        .expect("a formatting trait implementation returned an error");
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::String;
@@ -441,5 +458,10 @@ mod tests {
         assert_eq!(s.as_str_nul(), "hello world!\0");
         s.clear();
         assert_eq!(s.as_str_nul(), "\0");
+    }
+
+    #[test]
+    fn formatting() {
+        assert_eq!(format!("PI = {}", 3).as_str_nul(), "PI = 3\0");
     }
 }
