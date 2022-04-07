@@ -172,6 +172,21 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// since it is the only one that can be called from multiple threads.
     fn matches(&self, line: usize, matcher: Matcher<'_>) -> bool;
 
+    /// Get the completed value of an entry.
+    ///
+    /// This is called when the user triggers the `kb-row-select` keybind
+    /// (control+space by default)
+    /// which sets the content of the input box to the selected item.
+    /// It is also used by the sorting algorithm.
+    ///
+    /// Note that it is _not_ called on an [`Event::Complete`],
+    /// [`react`] is called then instead.
+    ///
+    /// The default implementation forwards to [`Self::entry_content`].
+    fn completed(&mut self, line: usize) -> String {
+        self.entry_content(line)
+    }
+
     /// Get the message to show in the message bar.
     ///
     /// The returned string must be valid Pango markup.
@@ -238,6 +253,7 @@ impl<T: GivesMode> RawModeHelper<T> {
         _get_display_value: Some(get_display_value::<T>),
         _token_match: Some(token_match::<T>),
         _get_icon: Some(get_icon::<T>),
+        _get_completion: Some(get_completion::<T>),
         _get_message: Some(get_message::<T>),
         ..ffi::Mode::default()
     };
@@ -412,6 +428,18 @@ unsafe extern "C" fn get_icon<T: GivesMode>(
     .unwrap_or(ptr::null_mut())
 }
 
+unsafe extern "C" fn get_completion<T: GivesMode>(
+    sw: *const ffi::Mode,
+    selected_line: c_uint,
+) -> *mut c_char {
+    let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
+    abort_on_panic(|| {
+        mode.completed(selected_line as usize)
+            .into_raw()
+            .cast::<c_char>()
+    })
+}
+
 unsafe extern "C" fn get_message<T: GivesMode>(sw: *const ffi::Mode) -> *mut c_char {
     let mode: &mut ModeOf<'_, T> = unsafe { &mut *ffi::mode_get_private_data(sw).cast() };
     catch_panic(|| {
@@ -424,14 +452,21 @@ unsafe extern "C" fn get_message<T: GivesMode>(sw: *const ffi::Mode) -> *mut c_c
     .unwrap_or(ptr::null_mut())
 }
 
-fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
-    struct AbortOnDrop;
-    impl Drop for AbortOnDrop {
-        fn drop(&mut self) {
-            process::abort();
-        }
+struct AbortOnDrop;
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        process::abort();
     }
+}
 
+fn abort_on_panic<O, F: FnOnce() -> O>(f: F) -> O {
+    let guard = AbortOnDrop;
+    let res = f();
+    mem::forget(guard);
+    res
+}
+
+fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
     panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|e| {
         let guard = AbortOnDrop;
         drop(e);
