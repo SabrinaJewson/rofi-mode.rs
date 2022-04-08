@@ -306,7 +306,7 @@ unsafe extern "C" fn destroy<T: GivesMode>(sw: *mut ffi::Mode) {
     if ptr.is_null() {
         return;
     }
-    let boxed = unsafe { <Box<T>>::from_raw(ptr.cast()) };
+    let boxed = unsafe { <Box<ModeOf<'_, T>>>::from_raw(ptr.cast()) };
     let _ = catch_panic(|| drop(boxed));
     unsafe { ffi::mode_set_private_data(sw, ptr::null_mut()) };
 }
