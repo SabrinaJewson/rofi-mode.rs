@@ -353,6 +353,54 @@ impl Borrow<str> for String {
     }
 }
 
+impl Extend<char> for String {
+    fn extend<T: IntoIterator<Item = char>>(&mut self, iter: T) {
+        for c in iter {
+            self.push_str(c.encode_utf8(&mut [0; 4]));
+        }
+    }
+}
+
+impl<'a> Extend<&'a char> for String {
+    fn extend<T: IntoIterator<Item = &'a char>>(&mut self, iter: T) {
+        for c in iter {
+            self.push_str(c.encode_utf8(&mut [0; 4]));
+        }
+    }
+}
+
+impl<'a> Extend<&'a str> for String {
+    fn extend<T: IntoIterator<Item = &'a str>>(&mut self, iter: T) {
+        for s in iter {
+            self.push_str(s);
+        }
+    }
+}
+
+impl FromIterator<char> for String {
+    fn from_iter<T: IntoIterator<Item = char>>(iter: T) -> Self {
+        let mut this = Self::new();
+        this.extend(iter);
+        this
+    }
+}
+
+impl<'a> FromIterator<&'a char> for String {
+    fn from_iter<T: IntoIterator<Item = &'a char>>(iter: T) -> Self {
+        let mut this = Self::new();
+        this.extend(iter);
+        this
+    }
+}
+
+impl<'a> FromIterator<&'a str> for String {
+    fn from_iter<T: IntoIterator<Item = &'a str>>(iter: T) -> Self {
+        let mut this = Self::new();
+        this.extend(iter);
+        this
+    }
+}
+
 /// Format a Rofi [`String`] using interpolation of runtime expressions.
 ///
 /// See the documentation of [`std::format!`] for more details.
