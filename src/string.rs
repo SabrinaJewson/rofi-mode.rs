@@ -103,10 +103,12 @@ impl String {
     /// - `capacity` must be nonzero.
     /// - `len` must be < `capacity`.
     /// - `ptr` must be non-null.
-    /// - `ptr` must point to the start of an allocation of at least `capacity` bytes.
+    /// - `ptr` must point to the start of
+    ///     an allocation in the glib allocator
+    ///     of at least `capacity` bytes.
     /// - `ptr` must have provenance over at least `capacity` bytes.
     /// - The first `len` bytes at `*ptr` must be initialized and valid UTF-8,
-    ///     and not contain and null characters.
+    ///     and not contain any null characters.
     /// - The byte at `ptr[len]` must be zero.
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut u8, len: usize, capacity: usize) -> Self {

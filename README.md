@@ -25,7 +25,6 @@ struct Mode;
 
 impl rofi_mode::Mode<'_> for Mode {
     const NAME: &'static str = "an-example-mode\0";
-    const DISPLAY_NAME: &'static str = "My example mode\0";
     fn init(_api: rofi_mode::Api<'_>) -> Result<Self, ()> {
         Ok(Self)
     }

@@ -1,3 +1,5 @@
+use std::mem;
+
 rofi_mode::export_mode!(Mode<'_>);
 
 struct Mode<'rofi> {
@@ -7,9 +9,9 @@ struct Mode<'rofi> {
 
 impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     const NAME: &'static str = "plugin-example-basic\0";
-    const DISPLAY_NAME: &'static str = "A basic Rofi plugin\0";
 
-    fn init(api: rofi_mode::Api<'rofi>) -> Result<Self, ()> {
+    fn init(mut api: rofi_mode::Api<'rofi>) -> Result<Self, ()> {
+        api.set_display_name("A basic Rofi plugin");
         Ok(Self {
             api,
             entries: Vec::new(),
@@ -35,16 +37,31 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     ) -> rofi_mode::Action {
         match event {
             rofi_mode::Event::Cancel { selected: _ } => return rofi_mode::Action::Exit,
-            rofi_mode::Event::Ok { alt: _, selected } => {
+            rofi_mode::Event::Ok {
+                alt: false,
+                selected,
+            } => {
                 println!("Selected option {:?}", self.entries[selected]);
                 return rofi_mode::Action::Exit;
             }
+            rofi_mode::Event::Ok {
+                alt: true,
+                selected,
+            } => {
+                self.api.set_display_name(&*self.entries[selected]);
+            }
             rofi_mode::Event::CustomInput {
-                alt: _,
+                alt: false,
                 selected: _,
             } => {
                 self.entries.push(input.into());
                 input.clear();
+            }
+            rofi_mode::Event::CustomInput {
+                alt: true,
+                selected: _,
+            } => {
+                self.api.replace_display_name(mem::take(input));
             }
             rofi_mode::Event::DeleteEntry { selected } => {
                 self.entries.remove(selected);

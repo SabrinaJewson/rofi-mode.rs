@@ -23,7 +23,6 @@
 //!
 //! impl rofi_mode::Mode<'_> for Mode {
 //!     const NAME: &'static str = "an-example-mode\0";
-//!     const DISPLAY_NAME: &'static str = "My example mode\0";
 //!     fn init(_api: rofi_mode::Api<'_>) -> Result<Self, ()> {
 //!         Ok(Self)
 //!     }
@@ -117,12 +116,6 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
     /// This string must be null-terminated
     /// and contain no intermediate null characters.
     const NAME: &'static str;
-
-    /// The display name of the mode to be shown as the prompt before the colon in Rofi.
-    ///
-    /// This string must be null-terminated
-    /// and contain no intermediate null characters.
-    const DISPLAY_NAME: &'static str;
 
     /// Initialize the mode.
     ///
@@ -239,7 +232,6 @@ where
     // Workaround to get trait bounds in `const fn` on stable
     <[T; 0] as IntoIterator>::Item: GivesMode,
 {
-    assert_c_str(<<T as GivesModeLifetime<'_>>::Mode as Mode>::DISPLAY_NAME);
     <RawModeHelper<T>>::VALUE
 }
 
@@ -290,7 +282,7 @@ type ModeOf<'a, T> = <T as GivesModeLifetime<'a>>::Mode;
 
 unsafe extern "C" fn init<T: GivesMode>(sw: *mut ffi::Mode) -> c_int {
     if unsafe { ffi::mode_get_private_data(sw) }.is_null() {
-        let api = unsafe { Api::new() };
+        let api = unsafe { Api::new(ptr::NonNull::from(&mut (*sw).display_name).cast()) };
 
         let boxed: Box<ModeOf<'_, T>> =
             match catch_panic(|| <ModeOf<'_, T>>::init(api).map(Box::new)) {
@@ -299,9 +291,6 @@ unsafe extern "C" fn init<T: GivesMode>(sw: *mut ffi::Mode) -> c_int {
             };
         let ptr = Box::into_raw(boxed).cast::<c_void>();
         unsafe { ffi::mode_set_private_data(sw, ptr) };
-
-        let display_name = <ModeOf<'_, T>>::DISPLAY_NAME;
-        unsafe { (*sw).display_name = glib_sys::g_strdup(display_name.as_ptr().cast()) };
     }
     true.into()
 }

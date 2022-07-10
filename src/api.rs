@@ -2,12 +2,14 @@
 #![allow(clippy::unused_self)] // It's needed for the lifetime
 
 use {
-    crate::ffi,
+    crate::{ffi, String},
     ::std::{
         ffi::{CStr, CString},
+        fmt::{Display, Write as _},
         marker::PhantomData,
         os::{raw::c_int, unix::ffi::OsStrExt},
         path::Path,
+        ptr, slice, str,
     },
 };
 
@@ -16,14 +18,101 @@ use {
 /// to be only accessible while Rofi is running.
 #[derive(Debug)]
 pub struct Api<'rofi> {
+    display_name: ptr::NonNull<*mut u8>,
+    // Values are irrelevant when `*display_name == NULL`
+    display_name_len: usize,
+    display_name_capacity: usize,
     lifetime: PhantomData<&'rofi ()>,
 }
 
+// SAFETY: All the methods take `&self` or `&mut self` appropriately to enforce thread-safety.
+// Additionally, this type's lifetime ensures that it can't be used on a separate thread outside of
+// when `Mode`'s methods run (since scoped threads only work inside a scope).
+unsafe impl Send for Api<'_> {}
+unsafe impl Sync for Api<'_> {}
+
 impl Api<'_> {
-    pub(crate) unsafe fn new() -> Self {
+    pub(crate) unsafe fn new(display_name: ptr::NonNull<*mut u8>) -> Self {
+        assert_eq!(*unsafe { display_name.as_ref() }, ptr::null_mut());
         Self {
+            display_name,
+            display_name_len: 0,
+            display_name_capacity: 0,
             lifetime: PhantomData,
         }
+    }
+
+    /// Get the display name of the current mode (the text displayed before the colon).
+    ///
+    /// Returns [`None`] if there isn't one,
+    /// in which case Rofi shows the [mode name] instead.
+    ///
+    /// [mode name]: crate::Mode::NAME
+    #[must_use]
+    pub fn display_name(&self) -> Option<&str> {
+        // SAFETY: Rofi never mutates the display name, and we only mutate it with an `&mut Api`.
+        let ptr = *unsafe { self.display_name.as_ref() };
+
+        if ptr.is_null() {
+            return None;
+        }
+
+        let slice = unsafe { slice::from_raw_parts(ptr, self.display_name_len) };
+
+        Some(unsafe { str::from_utf8_unchecked(slice) })
+    }
+
+    fn change_display_name(&mut self, display_name: Option<String>) -> Option<String> {
+        // SAFETY: In order for functions on this type to be called, we must be inside one of
+        // `Mode`'s methods. This means that Rofi guarantees us it won't be reading the display
+        // name at this point in time.
+        let ptr = unsafe { self.display_name.as_mut() };
+
+        let old_len = self.display_name_len;
+        let old_capacity = self.display_name_capacity;
+        let old_ptr = *ptr;
+
+        if let Some(display_name) = &display_name {
+            self.display_name_len = display_name.len();
+            self.display_name_capacity = display_name.capacity();
+        }
+        *ptr = display_name.map_or_else(ptr::null_mut, String::into_raw);
+
+        if old_ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { String::from_raw_parts(old_ptr, old_len, old_capacity) })
+        }
+    }
+
+    /// Take the current display name,
+    /// leaving [`None`] in its place
+    /// and returning the previous display name.
+    /// This will cause Rofi to display the [mode name](crate::Mode::NAME) instead.
+    ///
+    /// Returns [`None`] if there was no previous display name.
+    pub fn take_display_name(&mut self) -> Option<String> {
+        self.change_display_name(None)
+    }
+
+    /// Replace the current display name,
+    /// returning the previous one.
+    ///
+    /// Returns [`None`] if there was no previous display name.
+    pub fn replace_display_name(&mut self, display_name: String) -> Option<String> {
+        self.change_display_name(Some(display_name))
+    }
+
+    /// Set the display name of the current mode.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the given string contains any interior null bytes.
+    pub fn set_display_name<T: Display>(&mut self, display_name: T) {
+        let mut buf = self.take_display_name().unwrap_or_default();
+        buf.clear();
+        write!(buf, "{display_name}").unwrap();
+        self.replace_display_name(buf);
     }
 
     /// Check whether the given file path is an image in one of Rofi's supported formats,
