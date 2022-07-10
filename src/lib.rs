@@ -53,7 +53,10 @@
 //! (e.g. `/target/debug/libmy_awesome_plugin.so`)
 //! into `/lib/rofi`
 //! so that Rofi will pick up on it
-//! when it starts up.
+//! when it starts up
+//! (alternatively,
+//! you can set the `ROFI_PLUGIN_PATH` environment variable
+//! to the directory your `.so` file is in).
 //! You can then run your mode from Rofi's command line:
 //!
 //! ```sh
