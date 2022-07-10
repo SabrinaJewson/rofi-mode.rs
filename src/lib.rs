@@ -610,7 +610,7 @@ bitflags! {
         /// The text is on an alternate row.
         const ALT = 16;
         /// The text has inverted colors.
-        const HIGHTLIGHT = 32;
+        const HIGHLIGHT = 32;
     }
 }
 
