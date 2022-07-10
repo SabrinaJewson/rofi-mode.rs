@@ -200,9 +200,11 @@ pub trait Mode<'rofi>: Sized + Send + Sync {
 
     /// Get the message to show in the message bar.
     ///
-    /// The returned string must be valid Pango markup.
+    /// The returned string must be valid [Pango markup].
     ///
     /// The default implementation returns an empty string.
+    ///
+    /// [Pango markup]: https://docs.gtk.org/Pango/pango_markup.html
     fn message(&mut self) -> String {
         String::new()
     }
@@ -600,7 +602,9 @@ bitflags! {
         const ACTIVE = 2;
         /// The text in the box is selected.
         const SELECTED = 4;
-        /// The text in the box has Pango markup.
+        /// The text in the box has [Pango markup].
+        ///
+        /// [Pango markup]: https://docs.gtk.org/Pango/pango_markup.html
         const MARKUP = 8;
 
         /// The text is on an alternate row.
