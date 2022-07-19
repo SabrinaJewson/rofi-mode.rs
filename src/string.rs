@@ -1,12 +1,15 @@
-use ::std::{
-    borrow::Borrow,
-    cmp,
-    ffi::CStr,
-    fmt::{self, Debug, Display, Formatter, Write as _},
-    hash::{Hash, Hasher},
-    mem::ManuallyDrop,
-    ops::Deref,
-    ptr, slice, str,
+use ::{
+    cairo::glib::GString,
+    std::{
+        borrow::Borrow,
+        cmp,
+        ffi::CStr,
+        fmt::{self, Debug, Display, Formatter, Write as _},
+        hash::{Hash, Hasher},
+        mem::ManuallyDrop,
+        ops::Deref,
+        ptr, slice, str,
+    },
 };
 
 #[cfg(not(miri))]
@@ -312,6 +315,18 @@ macro_rules! impl_into_std_string {
     )* }
 }
 impl_into_std_string!(String, &String, &mut String);
+
+impl From<GString> for String {
+    fn from(s: GString) -> Self {
+        let len = s.len();
+        // We don't know the actual capacity but it doesn't matter,
+        // since a lower value is always fine.
+        // We also add one for the nul teminator.
+        let capacity = len + 1;
+
+        unsafe { Self::from_raw_parts(s.into_raw().cast(), len, capacity) }
+    }
+}
 
 impl Default for String {
     fn default() -> Self {
