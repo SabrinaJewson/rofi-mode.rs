@@ -439,7 +439,7 @@ pub fn format(args: fmt::Arguments<'_>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::String;
+    use {super::String, cairo::glib::GString};
 
     #[test]
     fn empty() {
@@ -528,6 +528,14 @@ mod tests {
         assert_eq!(s.as_str_nul(), "hello world!\0");
         s.clear();
         assert_eq!(s.as_str_nul(), "\0");
+    }
+
+    #[test]
+    #[cfg(not(miri))]
+    fn from_gstring() {
+        let s = String::from(GString::from("hello world"));
+        assert_eq!(s.as_str(), "hello world");
+        assert_eq!(s.as_str_nul(), "hello world\0");
     }
 
     #[test]
