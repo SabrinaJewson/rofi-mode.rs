@@ -12,8 +12,6 @@ fn test_miri() -> io::Result<()> {
     const RUSTFLAGS: &str = "-Zrandomize-layout";
     const MIRIFLAGS: &str = concat!(
         "-Zmiri-symbolic-alignment-check ",
-        "-Zmiri-check-number-validity ",
-        "-Zmiri-tag-raw-pointers ",
         "-Zmiri-strict-provenance"
     );
 
