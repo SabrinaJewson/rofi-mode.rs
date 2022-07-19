@@ -540,7 +540,7 @@ pub enum Event {
     },
     /// The user ran a custom command.
     CustomCommand {
-        /// The number of the custom cuommand, in the range [0, 18].
+        /// The number of the custom command, in the range [0, 18].
         number: u8,
         /// The line that was selected at the time of the event,
         /// if one was selected.
