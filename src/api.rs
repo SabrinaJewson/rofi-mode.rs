@@ -107,7 +107,7 @@ impl Api<'_> {
     ///
     /// # Panics
     ///
-    /// Panics if the given string contains any interior null bytes.
+    /// Panics if the given string contains any interior nul bytes.
     pub fn set_display_name<T: Display>(&mut self, display_name: T) {
         let mut buf = self.take_display_name().unwrap_or_default();
         buf.clear();
@@ -133,10 +133,10 @@ impl Api<'_> {
     ///
     /// # Panics
     ///
-    /// Panics if `name` contains interior null bytes.
+    /// Panics if `name` contains interior nul bytes.
     #[must_use]
     pub fn query_icon(&mut self, name: &str, size: u32) -> IconRequest {
-        let name = CString::new(name).expect("name contained null bytes");
+        let name = CString::new(name).expect("name contained nul bytes");
         self.query_icon_cstr(&*name, size)
     }
 
@@ -157,10 +157,10 @@ impl Api<'_> {
     ///
     /// # Panics
     ///
-    /// Panics if `name` contains interior null bytes.
+    /// Panics if `name` contains interior nul bytes.
     #[must_use]
     pub fn query_icon_wh(&mut self, name: &str, width: u32, height: u32) -> IconRequest {
-        let name = CString::new(name).expect("name contained null bytes");
+        let name = CString::new(name).expect("name contained nul bytes");
         self.query_icon_wh_cstr(&*name, width, height)
     }
 

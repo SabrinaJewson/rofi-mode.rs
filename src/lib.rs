@@ -113,8 +113,8 @@ pub use api::Api;
 pub trait Mode<'rofi>: Sized + Send + Sync {
     /// The name of the mode.
     ///
-    /// This string must be null-terminated
-    /// and contain no intermediate null characters.
+    /// This string must be nul-terminated
+    /// and contain no intermediate nul characters.
     const NAME: &'static str;
 
     /// Initialize the mode.
@@ -271,10 +271,10 @@ impl<T: GivesMode> RawModeHelper<T> {
 const fn assert_c_str(s: &'static str) -> *mut c_char {
     let mut i = 0;
     while i + 1 < s.len() {
-        assert!(s.as_bytes()[i] != 0, "string contains intermediary null");
+        assert!(s.as_bytes()[i] != 0, "string contains intermediary nul");
         i += 1;
     }
-    assert!(s.as_bytes()[i] == 0, "string is not null-terminated");
+    assert!(s.as_bytes()[i] == 0, "string is not nul-terminated");
     s.as_ptr() as _
 }
 

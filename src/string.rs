@@ -24,8 +24,8 @@ use ::libc::{calloc, free, malloc, realloc};
 ///
 /// In constrast to the standard library's [`std::string::String`] type,
 /// this string type:
-/// - Cannot contain any intermediary null bytes.
-/// - Is always null-terminated.
+/// - Cannot contain any intermediary nul bytes.
+/// - Is always nul-terminated.
 /// - Is allocated using glib's allocator
 ///     (`g_malloc`, `g_realloc` and `g_free`).
 ///
@@ -33,7 +33,7 @@ use ::libc::{calloc, free, malloc, realloc};
 /// just like with the standard library.
 pub struct String {
     ptr: ptr::NonNull<u8>,
-    // Doesn't include the null terminator, so is always < capacity.
+    // Doesn't include the nul terminator, so is always < capacity.
     len: usize,
     capacity: usize,
 }
@@ -63,7 +63,7 @@ impl String {
     }
 
     /// Get the length of the string in bytes,
-    /// excluding the null terminator.
+    /// excluding the nul terminator.
     #[must_use]
     pub const fn len(&self) -> usize {
         self.len
@@ -84,7 +84,7 @@ impl String {
     }
 
     /// Extract a string slice containing the entire string,
-    /// excluding the null terminator.
+    /// excluding the nul terminator.
     ///
     /// This is equivalent to the `Deref` implementation.
     #[must_use]
@@ -93,7 +93,7 @@ impl String {
     }
 
     /// Extract a string slice containing the entire string,
-    /// including the null terminator.
+    /// including the nul terminator.
     #[must_use]
     pub fn as_str_nul(&self) -> &str {
         unsafe { str::from_utf8_unchecked(slice::from_raw_parts(self.ptr.as_ptr(), self.len + 1)) }
@@ -111,7 +111,7 @@ impl String {
     ///     of at least `capacity` bytes.
     /// - `ptr` must have provenance over at least `capacity` bytes.
     /// - The first `len` bytes at `*ptr` must be initialized and valid UTF-8,
-    ///     and not contain any null characters.
+    ///     and not contain any nul characters.
     /// - The byte at `ptr[len]` must be zero.
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut u8, len: usize, capacity: usize) -> Self {
@@ -142,7 +142,7 @@ impl String {
 
     /// Reserve `n` bytes of free space in the string.
     ///
-    /// `n` doesn't include the null terminator,
+    /// `n` doesn't include the nul terminator,
     /// meaning `.reserve(5)` will reserve enough capacity
     /// to push five more bytes of content.
     /// This means that `.reserve(0)` will allocate space for one byte on an empty string.
@@ -150,7 +150,7 @@ impl String {
         // no point in small strings
         const MIN_NON_ZERO_CAP: usize = 8;
 
-        // Use less-than to take into account the null byte.
+        // Use less-than to take into account the nul byte.
         if n < self.capacity - self.len {
             return;
         }
@@ -178,11 +178,11 @@ impl String {
     ///
     /// # Panics
     ///
-    /// Panics if the string contains intermediary null bytes.
+    /// Panics if the string contains intermediary nul bytes.
     pub fn push_str(&mut self, s: &str) {
         assert!(
             !s.as_bytes().contains(&b'\0'),
-            "push_str called on string with nulls"
+            "push_str called on string with nuls"
         );
 
         if s.is_empty() {
@@ -219,7 +219,7 @@ impl String {
     }
 
     /// Shrinks the capacity of this string to match its length,
-    /// plus one for the null terminator.
+    /// plus one for the nul terminator.
     pub fn shrink_to_fit(&mut self) {
         self.shrink_to(0);
     }
@@ -248,7 +248,7 @@ impl Deref for String {
     }
 }
 
-// No `DerefMut` impl because users could write in null bytes
+// No `DerefMut` impl because users could write in nul bytes
 
 impl AsRef<str> for String {
     fn as_ref(&self) -> &str {
