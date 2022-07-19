@@ -228,8 +228,10 @@ impl String {
     ///
     /// This does not touch the string's capacity.
     pub fn clear(&mut self) {
-        unsafe { *self.ptr.as_ptr() = b'\0' };
-        self.len = 0;
+        if self.len() > 0 {
+            unsafe { *self.ptr.as_ptr() = b'\0' };
+            self.len = 0;
+        }
     }
 }
 
@@ -524,10 +526,16 @@ mod tests {
 
     #[test]
     fn clear() {
-        let mut s = String::from("hello world!");
-        assert_eq!(s.as_str_nul(), "hello world!\0");
+        let mut s = String::new();
+        assert_eq!(s.as_str_nul(), "\0");
         s.clear();
         assert_eq!(s.as_str_nul(), "\0");
+        assert_eq!(s.capacity(), 0);
+
+        s.push_str("hello world!");
+        s.clear();
+        assert_eq!(s.as_str_nul(), "\0");
+        assert_eq!(s.capacity(), 13);
     }
 
     #[test]
