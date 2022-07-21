@@ -110,7 +110,7 @@ pub use api::Api;
 ///
 /// You can implement this trait on your own type to define a mode,
 /// then export it in the shared library using [`export_mode!`].
-pub trait Mode<'rofi>: Sized + Send + Sync {
+pub trait Mode<'rofi>: Sized + Sync {
     /// The name of the mode.
     ///
     /// This string must be nul-terminated
