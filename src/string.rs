@@ -228,7 +228,7 @@ impl String {
     ///
     /// This does not touch the string's capacity.
     pub fn clear(&mut self) {
-        if self.len() > 0 {
+        if !self.is_empty() {
             unsafe { *self.ptr.as_ptr() = b'\0' };
             self.len = 0;
         }
