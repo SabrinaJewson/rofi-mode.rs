@@ -238,6 +238,24 @@ impl String {
     pub fn push(&mut self, char: char) {
         self.push_str(char.encode_utf8(&mut [0; 4]));
     }
+
+    /// Shorten this string to the specified length.
+    ///
+    /// If `new_len` is greater or equal to than the current length,
+    /// this has no effect.
+    ///
+    /// The capacity of the string is untouched by this method.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `new_len` does not lie on a [`char`] boundary.
+    pub fn truncate(&mut self, new_len: usize) {
+        if new_len < self.len() {
+            assert!(self.is_char_boundary(new_len));
+            self.len = new_len;
+            unsafe { *self.ptr.as_ptr().add(self.len) = b'\0' };
+        }
+    }
 }
 
 impl Drop for String {
@@ -541,6 +559,32 @@ mod tests {
         s.clear();
         assert_eq!(s.as_str_nul(), "\0");
         assert_eq!(s.capacity(), 13);
+    }
+
+    #[test]
+    fn truncate() {
+        let mut s = String::new();
+
+        s.truncate(10);
+        s.truncate(0);
+
+        s.push_str("foobar");
+
+        s.truncate(10);
+        assert_eq!(s.as_str(), "foobar");
+        assert_eq!(s.as_str_nul(), "foobar\0");
+
+        s.truncate(6);
+        assert_eq!(s.as_str(), "foobar");
+        assert_eq!(s.as_str_nul(), "foobar\0");
+
+        s.truncate(3);
+        assert_eq!(s.as_str(), "foo");
+        assert_eq!(s.as_str_nul(), "foo\0");
+
+        s.truncate(0);
+        assert_eq!(s.as_str(), "");
+        assert_eq!(s.as_str_nul(), "\0");
     }
 
     #[test]
