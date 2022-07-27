@@ -233,6 +233,11 @@ impl String {
             self.len = 0;
         }
     }
+
+    /// Append the given [`char`] to the end of this string.
+    pub fn push(&mut self, char: char) {
+        self.push_str(char.encode_utf8(&mut [0; 4]));
+    }
 }
 
 impl Drop for String {
