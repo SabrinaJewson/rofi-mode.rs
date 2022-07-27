@@ -256,6 +256,15 @@ impl String {
             unsafe { *self.ptr.as_ptr().add(self.len) = b'\0' };
         }
     }
+
+    /// Remove and obtain the last character from the string.
+    ///
+    /// Returns [`None`] if the string is empty.
+    pub fn pop(&mut self) -> Option<char> {
+        let last = self.chars().next_back()?;
+        self.truncate(self.len() - last.len_utf8());
+        Some(last)
+    }
 }
 
 impl Drop for String {
