@@ -154,6 +154,9 @@ pub trait Mode<'rofi>: Sized + Sync {
     ///
     /// The default implementation always returns [`None`].
     ///
+    /// The given height is guaranteed to be `<= i32::MAX`;
+    /// that is, you can always safely cast it to an `i32`.
+    ///
     /// You can load icons using [`Api::query_icon`].
     fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
         None
