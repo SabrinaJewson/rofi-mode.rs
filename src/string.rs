@@ -357,8 +357,8 @@ impl From<GString> for String {
         // since a lower value is always fine.
         // We also add one for the nul teminator.
         let capacity = len + 1;
-
-        unsafe { Self::from_raw_parts(s.into_raw().cast(), len, capacity) }
+        let ptr = s.as_ptr() as *mut u8;
+        unsafe { Self::from_raw_parts(ptr, len, capacity) }
     }
 }
 
