@@ -14,7 +14,7 @@ bitflags = "2.0.1"
 cairo-rs = "0.17.0"
 libc = "0.2.140"
 pango = "0.17.4"
-rofi-plugin-sys = "0.1.1"
+rofi-plugin-sys = "0.1.0"
 
 [workspace]
 members = ["dev", "examples/basic"]
