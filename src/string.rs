@@ -1,5 +1,5 @@
 use ::{
-    cairo::glib::GString,
+    cairo::glib::{translate::IntoGlibPtr, GString},
     std::{
         borrow::Borrow,
         cmp,
@@ -358,7 +358,7 @@ impl From<GString> for String {
         // We also add one for the nul teminator.
         let capacity = len + 1;
 
-        unsafe { Self::from_raw_parts(s.into_raw().cast(), len, capacity) }
+        unsafe { Self::from_raw_parts(s.into_glib_ptr().cast(), len, capacity) }
     }
 }
 

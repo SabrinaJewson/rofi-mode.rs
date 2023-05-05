@@ -304,7 +304,7 @@ unsafe extern "C" fn destroy<T: GivesMode>(sw: *mut ffi::Mode) {
         return;
     }
     let boxed = unsafe { <Box<ModeOf<'_, T>>>::from_raw(ptr.cast()) };
-    let _ = catch_panic(|| drop(boxed));
+    _ = catch_panic(|| drop(boxed));
     unsafe { ffi::mode_set_private_data(sw, ptr::null_mut()) };
 }
 
@@ -702,7 +702,7 @@ impl Matcher<'_> {
     #[must_use]
     pub fn matches(self, s: &str) -> bool {
         let s = CString::new(s).expect("string contains null bytes");
-        self.matches_c_str(&*s)
+        self.matches_c_str(&s)
     }
 
     /// Check whether this matches matches the given C string.

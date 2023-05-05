@@ -137,7 +137,7 @@ impl Api<'_> {
     #[must_use]
     pub fn query_icon(&mut self, name: &str, size: u32) -> IconRequest {
         let name = CString::new(name).expect("name contained nul bytes");
-        self.query_icon_cstr(&*name, size)
+        self.query_icon_cstr(&name, size)
     }
 
     /// Query the icon theme for an icon with a specific name and size.
@@ -161,7 +161,7 @@ impl Api<'_> {
     #[must_use]
     pub fn query_icon_wh(&mut self, name: &str, width: u32, height: u32) -> IconRequest {
         let name = CString::new(name).expect("name contained nul bytes");
-        self.query_icon_wh_cstr(&*name, width, height)
+        self.query_icon_wh_cstr(&name, width, height)
     }
 
     /// Query the icon theme for an icon with a specific name and size.
