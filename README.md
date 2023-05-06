@@ -64,8 +64,15 @@ You can then run your mode from Rofi's command line:
 rofi -modi an-example-mode -show an-example-mode
 ```
 
+## Examples
+
+- See [examples/basic] for a basic example of a non-trivial Rofi mode,
+    which allows the user to add to the list of entries by writing in the Rofi box.
+- See [examples/file-browser] for a Rofi mode implementing a simple file browser.
 
 [`Mode`]: https://docs.rs/rofi-mode/latest/rofi_mode/trait.Mode.html
 [`export_mode!`]: https://docs.rs/rofi-mode/latest/rofi_mode/macro.export_mode.html
+[examples/basic]: https://github.com/SabrinaJewson/rofi-mode.rs/tree/main/examples/basic
+[examples/file-browser]: https://github.com/SabrinaJewson/rofi-mode.rs/tree/main/examples/file-browser
 
 License: MIT
