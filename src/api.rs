@@ -1,18 +1,6 @@
 //! Interface to Rofi's API.
 #![allow(clippy::unused_self)] // It's needed for the lifetime
 
-use {
-    crate::{ffi, String},
-    ::std::{
-        ffi::{CStr, CString},
-        fmt::{Display, Write as _},
-        marker::PhantomData,
-        os::{raw::c_int, unix::ffi::OsStrExt},
-        path::Path,
-        ptr, slice, str,
-    },
-};
-
 /// The Rofi API,
 /// controlled by a lifetime
 /// to be only accessible while Rofi is running.
@@ -214,3 +202,17 @@ impl IconRequest {
         api.retrieve_icon(self)
     }
 }
+
+use crate::ffi;
+use crate::String;
+use std::ffi::CStr;
+use std::ffi::CString;
+use std::fmt::Display;
+use std::fmt::Write as _;
+use std::marker::PhantomData;
+use std::os::raw::c_int;
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
+use std::ptr;
+use std::slice;
+use std::str;

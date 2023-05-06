@@ -1,5 +1,3 @@
-use ::std::{env, io, process};
-
 #[allow(clippy::redundant_closure)]
 fn main() -> io::Result<()> {
     match &*env::args().nth(1).unwrap_or_else(|| help()) {
@@ -32,5 +30,9 @@ fn help() -> ! {
     eprintln!();
     eprintln!("SUBCOMMANDS:");
     eprintln!("    test-miri    Runs all the tests using Miri");
-    std::process::exit(1)
+    process::exit(1)
 }
+
+use std::env;
+use std::io;
+use std::process;

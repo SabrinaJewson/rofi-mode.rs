@@ -1,5 +1,3 @@
-use std::mem;
-
 rofi_mode::export_mode!(Mode<'_>);
 
 struct Mode<'rofi> {
@@ -90,3 +88,5 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
         }
     }
 }
+
+use std::mem;

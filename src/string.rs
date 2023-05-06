@@ -1,25 +1,3 @@
-use ::{
-    cairo::glib::{translate::IntoGlibPtr, GString},
-    std::{
-        borrow::{Borrow, Cow},
-        cmp,
-        ffi::CStr,
-        fmt::{self, Debug, Display, Formatter, Write as _},
-        hash::{Hash, Hasher},
-        mem::ManuallyDrop,
-        ops::Deref,
-        ptr, slice, str,
-    },
-};
-
-#[cfg(not(miri))]
-use crate::glib_sys::{
-    g_free as free, g_malloc as malloc, g_malloc0_n as calloc, g_realloc as realloc,
-};
-
-#[cfg(miri)]
-use ::libc::{calloc, free, malloc, realloc};
-
 /// A UTF-8-encoded growable string buffer suitable for FFI with Rofi.
 ///
 /// In constrast to the standard library's [`std::string::String`] type,
@@ -37,8 +15,6 @@ pub struct String {
     len: usize,
     capacity: usize,
 }
-
-const PTR_TO_NULL: *const u8 = &0;
 
 unsafe impl Send for String {}
 unsafe impl Sync for String {}
@@ -473,10 +449,10 @@ pub fn format(args: fmt::Arguments<'_>) -> String {
     s
 }
 
+const PTR_TO_NULL: *const u8 = &0;
+
 #[cfg(test)]
 mod tests {
-    use {super::String, cairo::glib::GString};
-
     #[test]
     fn empty() {
         let s = String::new();
@@ -610,4 +586,45 @@ mod tests {
     fn formatting() {
         assert_eq!(format!("PI = {}", 3).as_str_nul(), "PI = 3\0");
     }
+
+    use super::String;
+    use cairo::glib::GString;
 }
+
+#[cfg(not(miri))]
+mod allocator {
+    pub(crate) use crate::glib_sys::g_free as free;
+    pub(crate) use crate::glib_sys::g_malloc as malloc;
+    pub(crate) use crate::glib_sys::g_malloc0_n as calloc;
+    pub(crate) use crate::glib_sys::g_realloc as realloc;
+}
+#[cfg(miri)]
+mod allocator {
+    pub(crate) use libc::calloc;
+    pub(crate) use libc::free;
+    pub(crate) use libc::malloc;
+    pub(crate) use libc::realloc;
+}
+use allocator::calloc;
+use allocator::free;
+use allocator::malloc;
+use allocator::realloc;
+
+use cairo::glib::translate::IntoGlibPtr;
+use cairo::glib::GString;
+use std::borrow::Borrow;
+use std::borrow::Cow;
+use std::cmp;
+use std::ffi::CStr;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Write as _;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::mem::ManuallyDrop;
+use std::ops::Deref;
+use std::ptr;
+use std::slice;
+use std::str;

@@ -83,25 +83,13 @@
     clippy::cast_possible_wrap
 )]
 
-use ::{
-    bitflags::bitflags,
-    cairo::ffi as cairo_sys,
-    pango::{
-        ffi as pango_sys,
-        glib::{ffi as glib_sys, translate::ToGlibPtrMut},
-    },
-    std::{
-        ffi::{c_void, CStr, CString},
-        mem::{self, ManuallyDrop},
-        os::raw::{c_char, c_int, c_uint},
-        panic, process, ptr,
-    },
-};
-
-pub use {cairo, pango, rofi_plugin_sys as ffi};
+pub use cairo;
+pub use pango;
+pub use rofi_plugin_sys as ffi;
 
 mod string;
-pub use string::{format, String};
+pub use string::format;
+pub use string::String;
 
 pub mod api;
 pub use api::Api;
@@ -256,7 +244,8 @@ mod sealed {
         type Mode = O;
     }
 }
-use sealed::{GivesMode, GivesModeLifetime};
+use sealed::GivesMode;
+use sealed::GivesModeLifetime;
 
 struct RawModeHelper<T>(T);
 impl<T: GivesMode> RawModeHelper<T> {
@@ -720,3 +709,20 @@ impl Matcher<'_> {
         0 != unsafe { ffi::helper::token_match(ptr, s.as_ptr()) }
     }
 }
+
+use bitflags::bitflags;
+use cairo::ffi as cairo_sys;
+use pango::ffi as pango_sys;
+use pango::glib::ffi as glib_sys;
+use pango::glib::translate::ToGlibPtrMut;
+use std::ffi::c_void;
+use std::ffi::CStr;
+use std::ffi::CString;
+use std::mem::ManuallyDrop;
+use std::mem;
+use std::os::raw::c_char;
+use std::os::raw::c_int;
+use std::os::raw::c_uint;
+use std::panic;
+use std::process;
+use std::ptr;
