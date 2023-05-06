@@ -141,9 +141,7 @@ impl Entry {
             false => FileType::File,
         };
         let icon_name = if api.supports_image(&file_name) {
-            let mut res = Vec::new();
-            //res.extend(b"file://");
-            res.extend_from_slice(entry.path().as_os_str().as_bytes());
+            let mut res = entry.path().into_os_string().into_vec();
             res.push(0);
             Some(CString::from_vec_with_nul(res).unwrap())
         } else {
@@ -166,5 +164,5 @@ use std::env;
 use std::ffi::CString;
 use std::ffi::OsString;
 use std::fs;
-use std::os::unix::prelude::OsStrExt;
+use std::os::unix::ffi::OsStringExt as _;
 use std::path::PathBuf;
