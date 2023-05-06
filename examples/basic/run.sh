@@ -1,19 +1,12 @@
 #!/bin/sh
 set -eu
 
-ROFI_PREFIX="${ROFI_PREFIX:-}"
-
 cd "$(dirname "$0")"
 cargo build
 cd ../..
 
-mkdir -p "$ROFI_PREFIX"/lib/rofi
-if ! cp target/debug/librofi_plugin_example_basic.so "$ROFI_PREFIX"/lib/rofi/plugin_example_basic.so
-then
-	echo Attempting to copy again as root
-	sudo cp target/debug/librofi_plugin_example_basic.so "$ROFI_PREFIX"/lib/rofi/plugin_example_basic.so
-fi
-
 # DEBUGGER can be e.g. "gdb --args"
-${DEBUGGER:-} \
-	"$ROFI_PREFIX"/bin/rofi -modi run,plugin-example-basic -show plugin-example-basic "$@"
+ROFI_PLUGIN_PATH=target/debug/librofi_plugin_example_basic.so ${DEBUGGER:-} rofi \
+	-modi run,plugin-example-basic \
+	-show plugin-example-basic \
+	"$@"
