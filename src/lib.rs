@@ -127,9 +127,13 @@ pub trait Mode<'rofi>: Sized + Sync {
     fn entries(&mut self) -> usize;
 
     /// Get the text content of a particular entry in the list.
+    ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     fn entry_content(&self, line: usize) -> String;
 
     /// Get the text style of an entry in the list.
+    ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     ///
     /// The default implementation returns [`Style::NORMAL`].
     fn entry_style(&self, _line: usize) -> Style {
@@ -138,6 +142,8 @@ pub trait Mode<'rofi>: Sized + Sync {
 
     /// Get the text attributes associated with a particular entry in the list.
     ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
+    ///
     /// The default implementation returns an empty attribute list.
     fn entry_attributes(&self, _line: usize) -> Attributes {
         Attributes::new()
@@ -145,12 +151,15 @@ pub trait Mode<'rofi>: Sized + Sync {
 
     /// Get the icon of a particular entry in the list, if it has one.
     ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
+    ///
     /// The default implementation always returns [`None`].
     ///
     /// The given height is guaranteed to be `<= i32::MAX`;
     /// that is, you can always safely cast it to an `i32`.
     ///
-    /// You can load icons using [`Api::query_icon`].
+    /// You can load icons using [`Api::query_icon`],
+    /// or perform it manually with Cairo’s APIs.
     fn entry_icon(&mut self, _line: usize, _height: u32) -> Option<cairo::Surface> {
         None
     }
@@ -164,6 +173,8 @@ pub trait Mode<'rofi>: Sized + Sync {
     fn react(&mut self, event: Event, input: &mut String) -> Action;
 
     /// Find whether a specific line matches the given matcher.
+    ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     fn matches(&self, line: usize, matcher: Matcher<'_>) -> bool;
 
     /// Get the completed value of an entry.
@@ -176,14 +187,17 @@ pub trait Mode<'rofi>: Sized + Sync {
     /// Note that it is _not_ called on an [`Event::Complete`],
     /// [`Self::react`] is called then instead.
     ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
+    ///
     /// The default implementation forwards to [`Self::entry_content`].
     fn completed(&self, line: usize) -> String {
         self.entry_content(line)
     }
 
     /// Preprocess the user's input before using it to filter and/or sort.
-    ///
     /// This is typically used to strip markup.
+    ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     ///
     /// The default implementation returns the input unchanged.
     fn preprocess_input(&mut self, input: &str) -> String {
@@ -193,6 +207,8 @@ pub trait Mode<'rofi>: Sized + Sync {
     /// Get the message to show in the message bar.
     ///
     /// The returned string must be valid [Pango markup].
+    ///
+    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     ///
     /// The default implementation returns an empty string.
     ///
@@ -500,8 +516,10 @@ fn catch_panic<O, F: FnOnce() -> O>(f: F) -> Result<O, ()> {
 pub enum Event {
     /// The user cancelled the operation, for example by pressing escape.
     Cancel {
-        /// The line that was selected at the time of cancellation,
+        /// The index of the line that was selected at the time of cancellation,
         /// if one was selected.
+        ///
+        /// If present, this will be < [`Mode::entries`].
         selected: Option<usize>,
     },
     /// The user accepted an option from the list (ctrl+j, ctrl+m or enter by default).
@@ -515,8 +533,10 @@ pub enum Event {
     CustomInput {
         /// Whether the alt binding was used (ctrl+shift+return by default).
         alt: bool,
-        /// The line that was selected at the time of the event,
+        /// The index of the line that was selected at the time of the event,
         /// if one was selected.
+        ///
+        /// If present, this will be < [`Mode::entries`].
         selected: Option<usize>,
     },
     /// The user used the `kb-mode-complete` binding (control+l by default).
@@ -526,21 +546,27 @@ pub enum Event {
     /// to the currently selected entry
     /// if there is one.
     Complete {
-        /// The line that was selected at the time of the event,
+        /// The index of the line that was selected at the time of the event,
         /// if one was selected.
+        ///
+        /// If present, this will be < [`Mode::entries`].
         selected: Option<usize>,
     },
     /// The user used the `kb-delete-entry` binding (shift+delete by default).
     DeleteEntry {
-        /// The index of the entry that was selected to be deleted,
+        /// The index of the entry that was selected to be deleted.
+        ///
+        /// If present, this will be < [`Mode::entries`].
         selected: usize,
     },
     /// The user ran a custom command.
     CustomCommand {
         /// The number of the custom command, in the range [0, 18].
         number: u8,
-        /// The line that was selected at the time of the event,
+        /// The index of the line that was selected at the time of the event,
         /// if one was selected.
+        ///
+        /// If present, this will be < [`Mode::entries`].
         selected: Option<usize>,
     },
 }
