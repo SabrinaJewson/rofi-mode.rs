@@ -78,7 +78,7 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     }
 
     fn matches(&self, line: usize, matcher: rofi_mode::Matcher<'_>) -> bool {
-        matcher.matches(&*self.entries[line])
+        matcher.matches(&self.entries[line])
     }
 
     fn message(&mut self) -> rofi_mode::String {

@@ -1,7 +1,7 @@
 use ::{
     cairo::glib::{translate::IntoGlibPtr, GString},
     std::{
-        borrow::Borrow,
+        borrow::{Borrow, Cow},
         cmp,
         ffi::CStr,
         fmt::{self, Debug, Display, Formatter, Write as _},
@@ -337,6 +337,8 @@ impl_from_stringlike!(
     &mut str,
     std::string::String,
     &std::string::String,
+    Cow<'_, str>,
+    &Cow<'_, str>,
 );
 
 macro_rules! impl_into_std_string {

@@ -17,4 +17,4 @@ pango = "0.17.4"
 rofi-plugin-sys = "0.3.0"
 
 [workspace]
-members = ["dev", "examples/basic"]
+members = ["dev", "examples/*"]
