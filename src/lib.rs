@@ -115,6 +115,11 @@ pub trait Mode<'rofi>: Sized + Sync {
     ///
     /// This string must be nul-terminated
     /// and contain no intermediate nul characters.
+    /// This means it will look something like:
+    ///
+    /// ```
+    /// const NAME: &'static str = "my-mode\0";
+    /// ```
     const NAME: &'static str;
 
     /// Initialize the mode.
@@ -223,7 +228,7 @@ macro_rules! export_mode {
 
 /// Convert an implementation of [`Mode`] to its raw FFI `Mode` struct.
 ///
-/// You generally do not want to call this function unless you're doing low-level stuff -
+/// You generally do not want to call this function unless you're doing low-level stuff —
 /// most of the time the [`export_mode!`] macro is what you want.
 ///
 /// # Panics
