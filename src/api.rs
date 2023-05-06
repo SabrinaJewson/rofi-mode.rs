@@ -129,7 +129,7 @@ impl Api<'_> {
 
     /// Query the icon theme for an icon with a specific name and size.
     ///
-    /// `name` can also be a full path, if prefixed with `file://`.
+    /// `name` can also be a full path.
     ///
     /// # Panics
     ///
@@ -142,7 +142,7 @@ impl Api<'_> {
 
     /// Query the icon theme for an icon with a specific name and size.
     ///
-    /// `name` can also be a full path, if prefixed with `file://`.
+    /// `name` can also be a full path.
     #[must_use]
     pub fn query_icon_cstr(&mut self, name: &CStr, size: u32) -> IconRequest {
         let uid = unsafe {
@@ -153,7 +153,7 @@ impl Api<'_> {
 
     /// Query the icon theme for an icon with a specific name and size.
     ///
-    /// `name` can also be a full path, if prefixed with `file://`.
+    /// `name` can also be a full path.
     ///
     /// # Panics
     ///
@@ -166,7 +166,7 @@ impl Api<'_> {
 
     /// Query the icon theme for an icon with a specific name and size.
     ///
-    /// `name` can also be a full path, if prefixed with `file://`.
+    /// `name` can also be a full path.
     #[must_use]
     pub fn query_icon_wh_cstr(&mut self, name: &CStr, width: u32, height: u32) -> IconRequest {
         let uid = unsafe {
