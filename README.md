@@ -1,6 +1,7 @@
-# rofi-mode &middot; [![crates.io](https://img.shields.io/crates/v/cargo-rdme.svg)](https://crates.io/crates/cargo-rdme) [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/SabrinaJewson/rofi-mode.rs/blob/main/LICENSE)
+# rofi-mode
 
-<!-- cargo-rdme start -->
+[![crates.io](https://img.shields.io/crates/v/rofi-mode.svg)](https://crates.io/crates/rofi-mode)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 A high-level Rust library for creating Rofi plugins and custom modes
 
@@ -23,6 +24,7 @@ Then, add this crate as a dependency using the following command:
 ```bash
 cargo add rofi-mode
 ```
+
 Now in your `lib.rs`,
 create a struct and implement the [`Mode`] trait for it.
 For example, here is a no-op mode with no entries:
@@ -82,4 +84,4 @@ rofi -modi an-example-mode -show an-example-mode
 [examples/basic]: https://github.com/SabrinaJewson/rofi-mode.rs/tree/main/examples/basic
 [examples/file-browser]: https://github.com/SabrinaJewson/rofi-mode.rs/tree/main/examples/file-browser
 
-<!-- cargo-rdme end -->
+License: MIT

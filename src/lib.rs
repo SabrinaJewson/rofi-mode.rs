@@ -1,3 +1,6 @@
+//! [![crates.io](https://img.shields.io/crates/v/rofi-mode.svg)](https://crates.io/crates/rofi-mode)
+//! ![License](https://img.shields.io/badge/License-MIT-green.svg)
+//!
 //! A high-level Rust library for creating Rofi plugins and custom modes
 //!
 //! # Getting started
@@ -19,6 +22,7 @@
 //! ```bash
 //! cargo add rofi-mode
 //! ```
+//!
 //! Now in your `lib.rs`,
 //! create a struct and implement the [`Mode`] trait for it.
 //! For example, here is a no-op mode with no entries:
