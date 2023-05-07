@@ -1,4 +1,7 @@
-//! `rofi-mode` provides a high-level ergonomic wrapper around Rofi's C plugin API.
+//! [![crates.io](https://img.shields.io/crates/v/rofi-mode.svg)](https://crates.io/crates/rofi-mode)
+//! ![License](https://img.shields.io/badge/License-MIT-green.svg)
+//!
+//! A high-level Rust library for creating Rofi plugins and custom modes
 //!
 //! # Getting started
 //!
@@ -13,6 +16,12 @@
 //!
 //! That will force Cargo to generate your library as a `.so` file,
 //! which is what Rofi loads its plugins from.
+//!
+//! Then, add this crate as a dependency using the following command:
+//!
+//! ```bash
+//! cargo add rofi-mode
+//! ```
 //!
 //! Now in your `lib.rs`,
 //! create a struct and implement the [`Mode`] trait for it.
@@ -751,8 +760,8 @@ use pango::glib::translate::ToGlibPtrMut;
 use std::ffi::c_void;
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::mem::ManuallyDrop;
 use std::mem;
+use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 use std::os::raw::c_int;
 use std::os::raw::c_uint;
