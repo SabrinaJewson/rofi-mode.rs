@@ -21,7 +21,6 @@ unsafe impl Sync for Api<'_> {}
 
 impl Api<'_> {
     pub(crate) unsafe fn new(display_name: ptr::NonNull<*mut u8>) -> Self {
-        assert_eq!(*unsafe { display_name.as_ref() }, ptr::null_mut());
         Self {
             display_name,
             display_name_len: 0,
