@@ -71,6 +71,10 @@
 //! rofi -modi an-example-mode -show an-example-mode
 //! ```
 //!
+//! Build with `RUSTFLAGS="--cfg rofi_next"` to support unreleased Rofi versions,
+//! and drop support for released Rofi versions.
+//! This will turn on semver-exempt features, so use with caution.
+//!
 //! # Examples
 //!
 //! - See [examples/basic] for a basic example of a non-trivial Rofi mode,
