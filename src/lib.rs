@@ -380,8 +380,13 @@ unsafe extern "C" fn result<T: GivesMode>(
 
         let input: &mut *mut c_char = unsafe { &mut *input };
         let input_ptr: *mut c_char = mem::replace(&mut *input, ptr::null_mut());
-        let len = unsafe { libc::strlen(input_ptr) };
-        let mut input_string = unsafe { String::from_raw_parts(input_ptr.cast(), len, len + 1) };
+
+        let mut input_string = if input_ptr.is_null() {
+            String::new()
+        } else {
+            let len = unsafe { libc::strlen(input_ptr) };
+            unsafe { String::from_raw_parts(input_ptr.cast(), len, len + 1) }
+        };
 
         let action = mode.react(event, &mut input_string);
 
