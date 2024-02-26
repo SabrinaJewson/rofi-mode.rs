@@ -122,6 +122,10 @@ impl String {
     /// meaning `.reserve(5)` will reserve enough capacity
     /// to push five more bytes of content.
     /// This means that `.reserve(0)` will allocate space for one byte on an empty string.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the string length overflows a usize.
     pub fn reserve(&mut self, n: usize) {
         // no point in small strings
         const MIN_NON_ZERO_CAP: usize = 8;
@@ -145,7 +149,8 @@ impl String {
             unsafe { realloc(self.ptr.as_ptr().cast(), new_capacity) }.cast::<u8>()
         };
 
-        self.ptr = ptr::NonNull::new(ptr).expect("glib allocation failed");
+        // Glib allocation functions will only return NULL if `new_capacity = 0`, which it is not.
+        self.ptr = ptr::NonNull::new(ptr).expect("glib allocation returned NULL");
 
         self.capacity = new_capacity;
     }
@@ -178,6 +183,7 @@ impl String {
     /// The capacity will remain at least as large as both the length and the supplied value.
     ///
     /// If the current capacity is `<=` than the lower limit, this is a no-op.
+    #[allow(clippy::missing_panics_doc)]
     pub fn shrink_to(&mut self, min_capacity: usize) {
         let min_capacity = Ord::max(self.len + 1, min_capacity);
         if self.capacity <= min_capacity {
@@ -189,7 +195,8 @@ impl String {
 
         let ptr = unsafe { realloc(self.ptr.as_ptr().cast(), min_capacity) }.cast::<u8>();
 
-        self.ptr = ptr::NonNull::new(ptr).expect("glib allocation failed");
+        // Glib allocation functions will only return NULL if `min_capacity = 0`, which it is not.
+        self.ptr = ptr::NonNull::new(ptr).expect("glib allocation returned NULL");
 
         self.capacity = min_capacity;
     }
@@ -441,6 +448,10 @@ macro_rules! format {
 /// Format a Rofi [`String`] using a set of format arguments.
 ///
 /// Usually you will want to use the [`format!`](crate::format!) macro instead of this function.
+///
+/// # Panics
+///
+/// Panics if `args` returns an error during formatting.
 #[must_use]
 pub fn format(args: fmt::Arguments<'_>) -> String {
     let mut s = String::new();
