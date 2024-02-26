@@ -171,25 +171,18 @@ impl Api<'_> {
     /// The returned icon will be the best match for the requested size,
     /// but you may need to resize it to desired size.
     ///
-    /// It may be ergonomically preferable to use [`IconRequest::try_wait`] instead of this function.
+    /// It may be ergonomically preferable to use [`IconRequest::wait`] instead of this function.
     ///
     /// # Errors
     ///
     /// Errors if the icon was not found, or an error occurred inside the returned Cairo surface.
     #[allow(clippy::needless_pass_by_value)]
-    pub fn try_retrieve_icon(&mut self, request: IconRequest) -> Result<cairo::Surface, IconError> {
+    pub fn retrieve_icon(&mut self, request: IconRequest) -> Result<cairo::Surface, IconError> {
         let ptr = unsafe { ffi::icon_fetcher::get(request.uid) };
         if ptr.is_null() {
             return Err(IconError::NotFound);
         }
         unsafe { cairo::Surface::from_raw_full(ptr) }.map_err(IconError::Surface)
-    }
-
-    /// Use [`Self::try_retrieve_icon`] instead; this variant swallows up errors.
-    #[must_use]
-    #[deprecated(since = "0.3.2", note = "Use `try_retrieve_icon` instead")]
-    pub fn retrieve_icon(&mut self, request: IconRequest) -> Option<cairo::Surface> {
-        self.try_retrieve_icon(request).ok()
     }
 }
 
@@ -204,17 +197,10 @@ pub struct IconRequest {
 impl IconRequest {
     /// Wait for the request to be fulfilled.
     ///
-    /// This is a wrapper around [`Api::try_retrieve_icon`] — see that method for more.
+    /// This is a wrapper around [`Api::retrieve_icon`] — see that method for more.
     #[allow(clippy::missing_errors_doc)]
-    pub fn try_wait(self, api: &mut Api<'_>) -> Result<cairo::Surface, IconError> {
-        api.try_retrieve_icon(self)
-    }
-
-    /// Use [`Self::try_wait`] instead; this variant swallows up errors.
-    #[must_use]
-    #[deprecated(since = "0.3.2", note = "Use `try_wait` instead")]
-    pub fn wait(self, api: &mut Api<'_>) -> Option<cairo::Surface> {
-        self.try_wait(api).ok()
+    pub fn wait(self, api: &mut Api<'_>) -> Result<cairo::Surface, IconError> {
+        api.retrieve_icon(self)
     }
 }
 
