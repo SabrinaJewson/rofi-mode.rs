@@ -11,10 +11,10 @@ categories = ["api-bindings"]
 
 [dependencies]
 bitflags = "2.2.1"
-cairo-rs = "0.17.0"
+cairo-rs = "0.19.2"
 libc = "0.2.142"
-pango = "0.17.4"
-rofi-plugin-sys = "0.3.0"
+pango = "0.19.2"
+rofi-plugin-sys = "0.4.0"
 
 [workspace]
 members = ["dev", "examples/*"]
