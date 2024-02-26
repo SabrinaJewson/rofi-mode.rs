@@ -171,16 +171,25 @@ impl Api<'_> {
     /// The returned icon will be the best match for the requested size,
     /// but you may need to resize it to desired size.
     ///
-    /// It may be ergonomically preferable to use [`IconRequest::wait`] instead of this function.
-    #[must_use]
-    #[allow(clippy::missing_panics_doc, clippy::needless_pass_by_value)]
-    pub fn retrieve_icon(&mut self, request: IconRequest) -> Option<cairo::Surface> {
+    /// It may be ergonomically preferable to use [`IconRequest::try_wait`] instead of this function.
+    ///
+    /// # Errors
+    ///
+    /// Errors if the icon was not found, or an error occurred inside the returned Cairo surface.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn try_retrieve_icon(&mut self, request: IconRequest) -> Result<cairo::Surface, IconError> {
         let ptr = unsafe { ffi::icon_fetcher::get(request.uid) };
         if ptr.is_null() {
-            None
-        } else {
-            Some(unsafe { cairo::Surface::from_raw_full(ptr) }.unwrap())
+            return Err(IconError::NotFound);
         }
+        unsafe { cairo::Surface::from_raw_full(ptr) }.map_err(IconError::Surface)
+    }
+
+    /// Use [`Self::try_retrieve_icon`] instead; this variant swallows up errors.
+    #[must_use]
+    #[deprecated(since = "0.3.2", note = "Use `try_retrieve_icon` instead")]
+    pub fn retrieve_icon(&mut self, request: IconRequest) -> Option<cairo::Surface> {
+        self.try_retrieve_icon(request).ok()
     }
 }
 
@@ -195,18 +204,65 @@ pub struct IconRequest {
 impl IconRequest {
     /// Wait for the request to be fulfilled.
     ///
-    /// This is a wrapper around [`Api::retrieve_icon`].
+    /// This is a wrapper around [`Api::try_retrieve_icon`] — see that method for more.
+    #[allow(clippy::missing_errors_doc)]
+    pub fn try_wait(self, api: &mut Api<'_>) -> Result<cairo::Surface, IconError> {
+        api.try_retrieve_icon(self)
+    }
+
+    /// Use [`Self::try_wait`] instead; this variant swallows up errors.
     #[must_use]
+    #[deprecated(since = "0.3.2", note = "Use `try_wait` instead")]
     pub fn wait(self, api: &mut Api<'_>) -> Option<cairo::Surface> {
-        api.retrieve_icon(self)
+        self.try_wait(api).ok()
     }
 }
 
+/// An error retrieving an icon.
+#[derive(Debug)]
+pub enum IconError {
+    /// The icon was not found.
+    #[non_exhaustive]
+    NotFound,
+    /// An error occurred inside the Cairo surface.
+    #[non_exhaustive]
+    Surface(cairo::Error),
+}
+
+impl Display for IconError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("failed to retrieve icon")
+    }
+}
+
+impl Error for IconError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::NotFound => Some(&IconNotFound),
+            Self::Surface(e) => Some(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct IconNotFound;
+
+impl Display for IconNotFound {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("icon not found")
+    }
+}
+
+impl Error for IconNotFound {}
+
 use crate::ffi;
 use crate::String;
+use std::error::Error;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::os::raw::c_int;
