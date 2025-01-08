@@ -38,13 +38,11 @@ impl<'rofi> rofi_mode::Mode<'rofi> for Mode<'rofi> {
     }
 
     fn entry_icon(&mut self, line: usize, height: u32) -> Option<rofi_mode::cairo::Surface> {
-        if let Some(icon_name) = &self.entries[line].icon_name {
-            self.api
-                .query_icon_cstr(icon_name, height)
-                .wait(&mut self.api)
-        } else {
-            None
-        }
+        let icon_name = self.entries[line].icon_name.as_deref()?;
+        self.api
+            .query_icon_cstr(icon_name, height)
+            .wait(&mut self.api)
+            .ok()
     }
 
     fn react(

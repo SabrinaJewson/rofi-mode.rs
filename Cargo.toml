@@ -1,6 +1,6 @@
 [package]
 name = "rofi-mode"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 rust-version = "1.60.0"
 description = "High-level library for creating Rofi plugins and custom modes"
@@ -14,7 +14,7 @@ bitflags = "2.2.1"
 cairo-rs = "0.19.2"
 libc = "0.2.142"
 pango = "0.19.2"
-rofi-plugin-sys = "0.4.0"
+rofi-plugin-sys = "0.5.0"
 
 [workspace]
 members = ["dev", "examples/*"]
