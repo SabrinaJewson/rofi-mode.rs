@@ -217,8 +217,6 @@ pub trait Mode<'rofi>: Sized + Sync {
     /// Preprocess the user's input before using it to filter and/or sort.
     /// This is typically used to strip markup.
     ///
-    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
-    ///
     /// The default implementation returns the input unchanged.
     fn preprocess_input(&mut self, input: &str) -> String {
         input.into()
@@ -227,8 +225,6 @@ pub trait Mode<'rofi>: Sized + Sync {
     /// Get the message to show in the message bar.
     ///
     /// The returned string must be valid [Pango markup].
-    ///
-    /// The `line` parameter is the index of the relevant entry. It is always `< self.entries()`.
     ///
     /// The default implementation returns an empty string.
     ///
