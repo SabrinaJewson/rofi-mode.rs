@@ -185,11 +185,13 @@ impl Api<'_> {
         unsafe { cairo::Surface::from_raw_full(ptr) }.map_err(IconError::Surface)
     }
 
-    /// Hides the view (private api).
+    /// Hides the view.
+    ///
+    /// Be warned that this is a private API, so while we expose it for some use-cases, using it is
+    /// technically unreliable.
     pub fn hide(&mut self) {
-        unsafe { ffi::view::hide() }
+        unsafe { ffi::view::hide() };
     }
-    
 }
 
 /// A request sent to the icon fetcher.
