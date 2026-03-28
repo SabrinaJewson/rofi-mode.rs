@@ -5,7 +5,7 @@
 /// - Cannot contain any intermediary nul bytes.
 /// - Is always nul-terminated.
 /// - Is allocated using glib's allocator
-///     (`g_malloc`, `g_realloc` and `g_free`).
+///   (`g_malloc`, `g_realloc` and `g_free`).
 ///
 /// You can use our [`format!`](crate::format!) macro to format these strings,
 /// just like with the standard library.
@@ -83,11 +83,11 @@ impl String {
     /// - `len` must be < `capacity`.
     /// - `ptr` must be non-null.
     /// - `ptr` must point to the start of
-    ///     an allocation in the glib allocator
-    ///     of at least `capacity` bytes.
+    ///   an allocation in the glib allocator
+    ///   of at least `capacity` bytes.
     /// - `ptr` must have provenance over at least `capacity` bytes.
     /// - The first `len` bytes at `*ptr` must be initialized and valid UTF-8,
-    ///     and not contain any nul characters.
+    ///   and not contain any nul characters.
     /// - The byte at `ptr[len]` must be zero.
     #[must_use]
     pub unsafe fn from_raw_parts(ptr: *mut u8, len: usize, capacity: usize) -> Self {

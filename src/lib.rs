@@ -78,7 +78,7 @@
 //! # Examples
 //!
 //! - See [examples/basic] for a basic example of a non-trivial Rofi mode,
-//!     which allows the user to add to the list of entries by writing in the Rofi box.
+//!   which allows the user to add to the list of entries by writing in the Rofi box.
 //! - See [examples/file-browser] for a Rofi mode implementing a simple file browser.
 //!
 //! [`Mode`]: https://docs.rs/rofi-mode/latest/rofi_mode/trait.Mode.html
